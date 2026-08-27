@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0f3460"/>
+    </linearGradient>
+  </defs>
+  <rect width="144" height="144" rx="25.919999999999998" fill="url(#bg)"/>
+  <text x="50%" y="42%" text-anchor="middle" dominant-baseline="middle" font-size="50.4" fill="white">🍺</text>
+  <text x="50%" y="72%" text-anchor="middle" dominant-baseline="middle" font-size="19.439999999999998" font-weight="bold" fill="#e94560" font-family="Arial, sans-serif">POS</text>
+</svg>

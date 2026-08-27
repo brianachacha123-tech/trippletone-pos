@@ -1,0 +1,52 @@
+const fs = require('fs');
+const path = require('path');
+const pool = require('./database');
+const bcrypt = require('bcryptjs');
+
+async function initDatabase() {
+  const client = await pool.connect();
+  try {
+    // Read and execute schema
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf8');
+    await client.query(schema);
+    console.log('Database schema created successfully');
+
+    // Create default admin user
+    const adminCheck = await client.query('SELECT id FROM users WHERE username = $1', ['admin']);
+    if (adminCheck.rows.length === 0) {
+      const managerRole = await client.query('SELECT id FROM roles WHERE name = $1', ['manager']);
+      const passwordHash = await bcrypt.hash('admin123', 10);
+      await client.query(
+        'INSERT INTO users (username, password_hash, full_name, role_id) VALUES ($1, $2, $3, $4)',
+        ['admin', passwordHash, 'System Administrator', managerRole.rows[0].id]
+      );
+      console.log('Default admin user created (username: admin, password: admin123)');
+    }
+
+    // Create default cashier user
+    const cashierCheck = await client.query('SELECT id FROM users WHERE username = $1', ['cashier']);
+    if (cashierCheck.rows.length === 0) {
+      const cashierRole = await client.query('SELECT id FROM roles WHERE name = $1', ['cashier']);
+      const passwordHash = await bcrypt.hash('cashier123', 10);
+      await client.query(
+        'INSERT INTO users (username, password_hash, full_name, role_id) VALUES ($1, $2, $3, $4)',
+        ['cashier', passwordHash, 'Default Cashier', cashierRole.rows[0].id]
+      );
+      console.log('Default cashier user created (username: cashier, password: cashier123)');
+    }
+
+    console.log('Database initialization complete');
+  } catch (err) {
+    console.error('Error initializing database:', err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = initDatabase;
+
+if (require.main === module) {
+  initDatabase().then(() => process.exit(0)).catch(() => process.exit(1));
+}
