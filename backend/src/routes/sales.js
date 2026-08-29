@@ -46,7 +46,7 @@ router.post('/', authenticate, authorize('cashier', 'manager'), async (req, res)
       }
 
       const productResult = await client.query(
-        'SELECT id, name, selling_price, buying_price, current_stock FROM products WHERE id = $1 AND status = $2',
+        'SELECT id, name, selling_price, buying_price, current_stock FROM products WHERE id = $1 AND status = $2 AND deleted_at IS NULL',
         [productId, 'active']
       );
       if (productResult.rows.length === 0) {
@@ -196,6 +196,11 @@ router.get('/:id', authenticate, async (req, res) => {
     
     if (saleResult.rows.length === 0) {
       return res.status(404).json({ error: 'Sale not found' });
+    }
+
+    // Ownership check: cashiers may only view their own sales; managers see everything
+    if (req.user.role !== 'manager' && saleResult.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'You can only view your own sales' });
     }
 
     const itemsResult = await pool.query(

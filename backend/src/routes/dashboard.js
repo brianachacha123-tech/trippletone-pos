@@ -29,19 +29,19 @@ router.get('/kpis', authenticate, authorize('manager'), async (req, res) => {
     // Stock value
     const stockValue = await pool.query(`
       SELECT COALESCE(SUM(current_stock * buying_price), 0) as total_value
-      FROM products WHERE status = 'active'
+      FROM products WHERE status = 'active' AND deleted_at IS NULL
     `);
 
     // Low stock
     const lowStock = await pool.query(`
       SELECT COUNT(*) as count FROM products
-      WHERE current_stock > 0 AND current_stock <= minimum_stock AND status = 'active'
+      WHERE current_stock > 0 AND current_stock <= minimum_stock AND status = 'active' AND deleted_at IS NULL
     `);
 
     // Out of stock
     const outOfStock = await pool.query(`
       SELECT COUNT(*) as count FROM products
-      WHERE current_stock = 0 AND status = 'active'
+      WHERE current_stock = 0 AND status = 'active' AND deleted_at IS NULL
     `);
 
     const todayData = todaySales.rows[0];
@@ -145,7 +145,7 @@ router.get('/monthly', authenticate, authorize('manager'), async (req, res) => {
 
     const stockValue = await pool.query(`
       SELECT COALESCE(SUM(current_stock * buying_price), 0) as total_value
-      FROM products WHERE status = 'active'
+      FROM products WHERE status = 'active' AND deleted_at IS NULL
     `);
 
     const s = sales.rows[0];
@@ -297,7 +297,7 @@ router.get('/product-profitability', authenticate, authorize('manager'), async (
       FROM products p
       LEFT JOIN sale_items si ON p.id = si.product_id
       LEFT JOIN sales s ON si.sale_id = s.id
-      WHERE p.status = 'active'
+      WHERE p.status = 'active' AND p.deleted_at IS NULL
       GROUP BY p.id, p.name, p.buying_price, p.selling_price
       ORDER BY profit DESC
     `);
@@ -315,7 +315,7 @@ router.get('/alerts', authenticate, authorize('manager'), async (req, res) => {
     // Low stock
     const lowStock = await pool.query(`
       SELECT name, current_stock, minimum_stock FROM products
-      WHERE current_stock > 0 AND current_stock <= minimum_stock AND status = 'active'
+      WHERE current_stock > 0 AND current_stock <= minimum_stock AND status = 'active' AND deleted_at IS NULL
     `);
     lowStock.rows.forEach(p => {
       alerts.push({ type: 'warning', message: `Low stock: ${p.name} (${p.current_stock} remaining)`, category: 'low_stock' });
@@ -323,7 +323,7 @@ router.get('/alerts', authenticate, authorize('manager'), async (req, res) => {
 
     // Out of stock
     const outOfStock = await pool.query(`
-      SELECT name FROM products WHERE current_stock = 0 AND status = 'active'
+      SELECT name FROM products WHERE current_stock = 0 AND status = 'active' AND deleted_at IS NULL
     `);
     outOfStock.rows.forEach(p => {
       alerts.push({ type: 'danger', message: `Out of stock: ${p.name}`, category: 'out_of_stock' });

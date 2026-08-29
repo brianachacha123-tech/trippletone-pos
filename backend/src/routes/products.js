@@ -13,7 +13,7 @@ router.get('/', authenticate, async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN suppliers s ON p.supplier_id = s.id
-      WHERE 1=1
+      WHERE 1=1 AND p.deleted_at IS NULL
     `;
     const params = [];
     let paramIndex = 1;
@@ -55,7 +55,7 @@ router.get('/low-stock', authenticate, async (req, res) => {
         END as stock_status
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
-      WHERE p.current_stock <= p.minimum_stock AND p.status = 'active'
+      WHERE p.current_stock <= p.minimum_stock AND p.status = 'active' AND p.deleted_at IS NULL
       ORDER BY p.current_stock ASC
     `);
     res.json(result.rows);
@@ -72,7 +72,7 @@ router.get('/:id', authenticate, async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN suppliers s ON p.supplier_id = s.id
-      WHERE p.id = $1
+      WHERE p.id = $1 AND p.deleted_at IS NULL
     `, [req.params.id]);
     
     if (result.rows.length === 0) {
@@ -110,7 +110,7 @@ router.put('/:id', authenticate, authorize('manager'), async (req, res) => {
     
     const result = await pool.query(
       `UPDATE products SET name=$1, category_id=$2, buying_price=$3, selling_price=$4, current_stock=$5, minimum_stock=$6, unit=$7, supplier_id=$8, status=$9, updated_at=NOW()
-       WHERE id=$10 RETURNING *`,
+       WHERE id=$10 AND deleted_at IS NULL RETURNING *`,
       [name, category_id, buying_price, selling_price, current_stock, minimum_stock, unit, supplier_id, status || 'active', req.params.id]
     );
     
@@ -129,13 +129,17 @@ router.put('/:id', authenticate, authorize('manager'), async (req, res) => {
 // Delete product (manager only)
 router.delete('/:id', authenticate, authorize('manager'), async (req, res) => {
   try {
-    const product = await pool.query('SELECT name FROM products WHERE id = $1', [req.params.id]);
+    const product = await pool.query('SELECT name FROM products WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (product.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    
-    await pool.query('DELETE FROM products WHERE id = $1', [req.params.id]);
-    await logAudit(req.user.id, 'Product deleted', `Product: ${product.rows[0].name}`);
+
+    // Soft delete: keep the row (and its sales history) but hide it everywhere
+    await pool.query(
+      'UPDATE products SET deleted_at = NOW(), status = $1, updated_at = NOW() WHERE id = $2',
+      ['archived', req.params.id]
+    );
+    await logAudit(req.user.id, 'Product deleted (soft)', `Product: ${product.rows[0].name}`);
     res.json({ message: 'Product deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -146,7 +150,7 @@ router.delete('/:id', authenticate, authorize('manager'), async (req, res) => {
 router.post('/:id/adjust-stock', authenticate, authorize('manager'), async (req, res) => {
   try {
     const { quantity, notes } = req.body;
-    const product = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
+    const product = await pool.query('SELECT * FROM products WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     
     if (product.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
@@ -210,13 +214,13 @@ router.get('/meta/stock-value', authenticate, async (req, res) => {
         )) as by_category
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
-      WHERE p.status = 'active'
+      WHERE p.status = 'active' AND p.deleted_at IS NULL
       GROUP BY c.name
     `);
     
     const totalResult = await pool.query(`
       SELECT SUM(current_stock * buying_price) as total_value
-      FROM products WHERE status = 'active'
+      FROM products WHERE status = 'active' AND deleted_at IS NULL
     `);
     
     res.json({

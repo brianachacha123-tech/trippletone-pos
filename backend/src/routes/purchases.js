@@ -61,7 +61,7 @@ router.post('/', authenticate, authorize('manager'), async (req, res) => {
     );
 
     // Update product stock
-    const product = await client.query('SELECT current_stock FROM products WHERE id = $1', [product_id]);
+    const product = await client.query('SELECT current_stock FROM products WHERE id = $1 AND deleted_at IS NULL', [product_id]);
     if (product.rows.length > 0) {
       const newStock = parseFloat(product.rows[0].current_stock) + parseFloat(quantity);
       await client.query('UPDATE products SET current_stock = $1, updated_at = NOW() WHERE id = $2', [newStock, product_id]);
@@ -95,7 +95,7 @@ router.delete('/:id', authenticate, authorize('manager'), async (req, res) => {
 
     // Reverse stock
     const p = purchase.rows[0];
-    const product = await pool.query('SELECT current_stock FROM products WHERE id = $1', [p.product_id]);
+    const product = await pool.query('SELECT current_stock FROM products WHERE id = $1 AND deleted_at IS NULL', [p.product_id]);
     if (product.rows.length > 0) {
       const newStock = parseFloat(product.rows[0].current_stock) - parseFloat(p.quantity);
       await pool.query('UPDATE products SET current_stock = $1, updated_at = NOW() WHERE id = $2', [newStock, p.product_id]);

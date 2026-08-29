@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS products (
   supplier_id INTEGER,
   status VARCHAR(20) DEFAULT 'active',
   date_added TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  updated_at TIMESTAMP DEFAULT NOW(),
+  deleted_at TIMESTAMP
 );
 
 DO $$
@@ -86,6 +87,12 @@ BEGIN
   END IF;
 END
 $$;
+
+-- Soft-delete support for products: rows are kept (sales history intact),
+-- hidden by setting deleted_at. Applied after the table definition so it works
+-- for both fresh and existing databases.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_products_active ON products(deleted_at) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS supplier_products (
   id SERIAL PRIMARY KEY,

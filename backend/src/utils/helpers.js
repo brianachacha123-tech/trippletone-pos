@@ -1,44 +1,24 @@
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
 
+// Business IDs are UUIDv4: collision-proof (the old YYMMDD+4-digit-random pattern
+// collided at high daily volumes and broke the UNIQUE constraint). Prefixes keep the
+// IDs human-readable; VARCHAR(50) columns hold 4 + 36 = 40 chars fine.
+// No data migration needed: existing IDs remain valid, only the generator changes.
 function generateSaleId() {
-  const date = new Date();
-  const prefix = 'SAL';
-  const timestamp = date.getFullYear().toString().slice(2) + 
-    String(date.getMonth() + 1).padStart(2, '0') + 
-    String(date.getDate()).padStart(2, '0');
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  return `${prefix}-${timestamp}-${random}`;
+  return `SAL-${uuidv4()}`;
 }
 
 function generatePurchaseId() {
-  const date = new Date();
-  const prefix = 'PUR';
-  const timestamp = date.getFullYear().toString().slice(2) + 
-    String(date.getMonth() + 1).padStart(2, '0') + 
-    String(date.getDate()).padStart(2, '0');
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  return `${prefix}-${timestamp}-${random}`;
+  return `PUR-${uuidv4()}`;
 }
 
 function generateExpenseId() {
-  const date = new Date();
-  const prefix = 'EXP';
-  const timestamp = date.getFullYear().toString().slice(2) + 
-    String(date.getMonth() + 1).padStart(2, '0') + 
-    String(date.getDate()).padStart(2, '0');
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  return `${prefix}-${timestamp}-${random}`;
+  return `EXP-${uuidv4()}`;
 }
 
 function generateKegId() {
-  const date = new Date();
-  const prefix = 'KEG';
-  const timestamp = date.getFullYear().toString().slice(2) + 
-    String(date.getMonth() + 1).padStart(2, '0') + 
-    String(date.getDate()).padStart(2, '0');
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  return `${prefix}-${timestamp}-${random}`;
+  return `KEG-${uuidv4()}`;
 }
 
 async function logAudit(userId, action, details = null) {
