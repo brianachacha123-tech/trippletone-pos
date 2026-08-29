@@ -1,0 +1,899 @@
+diff --git a/backend/.env.example b/backend/.env.example
+index efd597a..9d369ad 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -2,3 +2,9 @@ DATABASE_URL=your_neon_connection_string_here
+ JWT_SECRET=your_jwt_secret_here
+ JWT_EXPIRES_IN=24h
+ PORT=5000
++# Optional: seed passwords for first-run default users (fallback: admin123 / cashier123)
++# Seeded users MUST change their password on first login regardless.
++DEFAULT_ADMIN_PASSWORD=change_me_admin
++DEFAULT_CASHIER_PASSWORD=change_me_cashier
++# Optional: comma-separated cross-origin allowlist (production is same-origin by default)
++CORS_ORIGIN=https://your-domain.com
+diff --git a/backend/src/config/initDB.js b/backend/src/config/initDB.js
+index 3f06df9..024cdfd 100644
+--- a/backend/src/config/initDB.js
++++ b/backend/src/config/initDB.js
+@@ -12,28 +12,32 @@ async function initDatabase() {
+     await client.query(schema);
+     console.log('Database schema created successfully');
+ 
+-    // Create default admin user
++    // Create default users with env-provided (or fallback) passwords.
++    // Passwords are NEVER logged. Seeded users are flagged must_change_password=true
++    // so they must set their own password on first login (enforced by middleware/auth.js).
++    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
++    const cashierPassword = process.env.DEFAULT_CASHIER_PASSWORD || 'cashier123';
++
+     const adminCheck = await client.query('SELECT id FROM users WHERE username = $1', ['admin']);
+     if (adminCheck.rows.length === 0) {
+       const managerRole = await client.query('SELECT id FROM roles WHERE name = $1', ['manager']);
+-      const passwordHash = await bcrypt.hash('admin123', 10);
++      const passwordHash = await bcrypt.hash(adminPassword, 10);
+       await client.query(
+-        'INSERT INTO users (username, password_hash, full_name, role_id) VALUES ($1, $2, $3, $4)',
++        'INSERT INTO users (username, password_hash, full_name, role_id, must_change_password) VALUES ($1, $2, $3, $4, true)',
+         ['admin', passwordHash, 'System Administrator', managerRole.rows[0].id]
+       );
+-      console.log('Default admin user created (username: admin, password: admin123)');
++      console.log('Default admin user created (username: admin) - password change required on first login');
+     }
+ 
+-    // Create default cashier user
+     const cashierCheck = await client.query('SELECT id FROM users WHERE username = $1', ['cashier']);
+     if (cashierCheck.rows.length === 0) {
+       const cashierRole = await client.query('SELECT id FROM roles WHERE name = $1', ['cashier']);
+-      const passwordHash = await bcrypt.hash('cashier123', 10);
++      const passwordHash = await bcrypt.hash(cashierPassword, 10);
+       await client.query(
+-        'INSERT INTO users (username, password_hash, full_name, role_id) VALUES ($1, $2, $3, $4)',
++        'INSERT INTO users (username, password_hash, full_name, role_id, must_change_password) VALUES ($1, $2, $3, $4, true)',
+         ['cashier', passwordHash, 'Default Cashier', cashierRole.rows[0].id]
+       );
+-      console.log('Default cashier user created (username: cashier, password: cashier123)');
++      console.log('Default cashier user created (username: cashier) - password change required on first login');
+     }
+ 
+     console.log('Database initialization complete');
+diff --git a/backend/src/config/schema.sql b/backend/src/config/schema.sql
+index c86eeae..0da68fa 100644
+--- a/backend/src/config/schema.sql
++++ b/backend/src/config/schema.sql
+@@ -18,10 +18,14 @@ CREATE TABLE IF NOT EXISTS users (
+   phone VARCHAR(20),
+   email VARCHAR(200),
+   is_active BOOLEAN DEFAULT true,
++  must_change_password BOOLEAN DEFAULT false,
+   created_at TIMESTAMP DEFAULT NOW(),
+   updated_at TIMESTAMP DEFAULT NOW()
+ );
+ 
++-- Upgrade path for existing databases
++ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false;
++
+ CREATE TABLE IF NOT EXISTS settings (
+   id SERIAL PRIMARY KEY,
+   business_name VARCHAR(200) DEFAULT 'Trippletone Bar',
+@@ -92,6 +96,7 @@ CREATE TABLE IF NOT EXISTS supplier_products (
+ CREATE TABLE IF NOT EXISTS sales (
+   id SERIAL PRIMARY KEY,
+   sale_id VARCHAR(50) UNIQUE NOT NULL,
++  client_ref VARCHAR(100),
+   user_id INTEGER REFERENCES users(id),
+   date TIMESTAMP DEFAULT NOW(),
+   total_revenue DECIMAL(12,2) DEFAULT 0,
+@@ -102,6 +107,10 @@ CREATE TABLE IF NOT EXISTS sales (
+   created_at TIMESTAMP DEFAULT NOW()
+ );
+ 
++-- Upgrade path for existing databases + idempotency index for offline sync
++ALTER TABLE sales ADD COLUMN IF NOT EXISTS client_ref VARCHAR(100);
++CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_client_ref ON sales(client_ref) WHERE client_ref IS NOT NULL;
++
+ CREATE TABLE IF NOT EXISTS sale_items (
+   id SERIAL PRIMARY KEY,
+   sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE,
+diff --git a/backend/src/middleware/auth.js b/backend/src/middleware/auth.js
+index 2bdb9ba..c82a4cd 100644
+--- a/backend/src/middleware/auth.js
++++ b/backend/src/middleware/auth.js
+@@ -12,7 +12,7 @@ const authenticate = async (req, res, next) => {
+     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+     
+     const result = await pool.query(
+-      'SELECT u.id, u.username, u.full_name, r.name as role FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 AND u.is_active = true',
++      'SELECT u.id, u.username, u.full_name, u.must_change_password, r.name as role FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 AND u.is_active = true',
+       [decoded.userId]
+     );
+     
+@@ -20,7 +20,18 @@ const authenticate = async (req, res, next) => {
+       return res.status(401).json({ error: 'User not found or inactive.' });
+     }
+     
+-    req.user = result.rows[0];
++    const user = result.rows[0];
++
++    // First-login password change: block everything except the auth account routes
++    if (user.must_change_password) {
++      const path = req.originalUrl.split('?')[0];
++      const allowed = ['/api/auth/change-password', '/api/auth/logout', '/api/auth/profile'];
++      if (!allowed.includes(path)) {
++        return res.status(403).json({ code: 'PASSWORD_CHANGE_REQUIRED', error: 'You must change your password before continuing.' });
++      }
++    }
++
++    req.user = user;
+     next();
+   } catch (err) {
+     return res.status(401).json({ error: 'Invalid token.' });
+diff --git a/backend/src/routes/auth.js b/backend/src/routes/auth.js
+index c8ff537..d874fba 100644
+--- a/backend/src/routes/auth.js
++++ b/backend/src/routes/auth.js
+@@ -6,21 +6,60 @@ const pool = require('../config/database');
+ const { authenticate } = require('../middleware/auth');
+ const { logAudit } = require('../utils/helpers');
+ 
++// Simple in-memory login rate limiter (per IP + username)
++const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
++const LOGIN_MAX_FAILURES = 5;
++const loginFailures = new Map();
++
++function loginKey(username, ip) {
++  return `${ip}|${String(username || '').toLowerCase()}`;
++}
++
++function recordLoginFailure(username, ip) {
++  const key = loginKey(username, ip);
++  const now = Date.now();
++  const entry = loginFailures.get(key) || { count: 0, firstAt: now };
++  if (now - entry.firstAt > LOGIN_WINDOW_MS) {
++    entry.count = 0;
++    entry.firstAt = now;
++  }
++  entry.count += 1;
++  loginFailures.set(key, entry);
++  return entry.count >= LOGIN_MAX_FAILURES;
++}
++
++function isLoginBlocked(username, ip) {
++  const entry = loginFailures.get(loginKey(username, ip));
++  return !!entry && (Date.now() - entry.firstAt <= LOGIN_WINDOW_MS) && entry.count >= LOGIN_MAX_FAILURES;
++}
++
++function clearLoginFailures(username, ip) {
++  loginFailures.delete(loginKey(username, ip));
++}
++
+ // Login
+ router.post('/login', async (req, res) => {
+   try {
+     const { username, password } = req.body;
+-    
++    const ip = req.ip || req.socket.remoteAddress || 'unknown';
++
+     if (!username || !password) {
+       return res.status(400).json({ error: 'Username and password required' });
+     }
+ 
++    if (isLoginBlocked(username, ip)) {
++      return res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
++    }
++
+     const result = await pool.query(
+       'SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = $1 AND u.is_active = true',
+       [username]
+     );
+ 
+     if (result.rows.length === 0) {
++      if (recordLoginFailure(username, ip)) {
++        return res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
++      }
+       return res.status(401).json({ error: 'Invalid credentials' });
+     }
+ 
+@@ -28,9 +67,14 @@ router.post('/login', async (req, res) => {
+     const validPassword = await bcrypt.compare(password, user.password_hash);
+     
+     if (!validPassword) {
++      if (recordLoginFailure(username, ip)) {
++        return res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
++      }
+       return res.status(401).json({ error: 'Invalid credentials' });
+     }
+ 
++    clearLoginFailures(username, ip);
++
+     const token = jwt.sign(
+       { userId: user.id, role: user.role_name },
+       process.env.JWT_SECRET,
+@@ -45,7 +89,8 @@ router.post('/login', async (req, res) => {
+         id: user.id,
+         username: user.username,
+         full_name: user.full_name,
+-        role: user.role_name
++        role: user.role_name,
++        must_change_password: user.must_change_password
+       }
+     });
+   } catch (err) {
+@@ -71,7 +116,11 @@ router.get('/profile', authenticate, async (req, res) => {
+ router.put('/change-password', authenticate, async (req, res) => {
+   try {
+     const { current_password, new_password } = req.body;
+-    
++
++    if (!new_password || new_password.length < 8) {
++      return res.status(400).json({ error: 'New password must be at least 8 characters' });
++    }
++
+     const result = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+     const validPassword = await bcrypt.compare(current_password, result.rows[0].password_hash);
+     
+@@ -80,7 +129,10 @@ router.put('/change-password', authenticate, async (req, res) => {
+     }
+ 
+     const passwordHash = await bcrypt.hash(new_password, 10);
+-    await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, req.user.id]);
++    await pool.query(
++      'UPDATE users SET password_hash = $1, must_change_password = false, updated_at = NOW() WHERE id = $2',
++      [passwordHash, req.user.id]
++    );
+     
+     await logAudit(req.user.id, 'Password changed');
+     res.json({ message: 'Password changed successfully' });
+diff --git a/backend/src/routes/clb.js b/backend/src/routes/clb.js
+index 25e364c..2a56b18 100644
+--- a/backend/src/routes/clb.js
++++ b/backend/src/routes/clb.js
+@@ -2,7 +2,7 @@ const express = require('express');
+ const router = express.Router();
+ const pool = require('../config/database');
+ const { authenticate, authorize } = require('../middleware/auth');
+-const { logAudit } = require('../utils/helpers');
++const { logAudit, round2 } = require('../utils/helpers');
+ 
+ // Get all CLB transactions
+ router.get('/', authenticate, authorize('manager'), async (req, res) => {
+@@ -52,8 +52,8 @@ router.get('/summary', authenticate, authorize('manager'), async (req, res) => {
+       total_sales: totalSales,
+       revenue: totalSales,
+       cost: totalPurchases,
+-      profit: totalSales - totalPurchases,
+-      available: totalSales - totalPurchases
++      profit: round2(totalSales - totalPurchases),
++      available: round2(totalSales - totalPurchases)
+     });
+   } catch (err) {
+     res.status(500).json({ error: 'Server error' });
+diff --git a/backend/src/routes/expenses.js b/backend/src/routes/expenses.js
+index fe16919..00307c4 100644
+--- a/backend/src/routes/expenses.js
++++ b/backend/src/routes/expenses.js
+@@ -2,7 +2,7 @@ const express = require('express');
+ const router = express.Router();
+ const pool = require('../config/database');
+ const { authenticate, authorize } = require('../middleware/auth');
+-const { logAudit, generateExpenseId } = require('../utils/helpers');
++const { logAudit, generateExpenseId, round2 } = require('../utils/helpers');
+ 
+ // Get all expenses
+ router.get('/', authenticate, authorize('manager'), async (req, res) => {
+@@ -73,7 +73,7 @@ router.post('/', authenticate, authorize('manager'), async (req, res) => {
+     const result = await pool.query(
+       `INSERT INTO expenses (expense_id, category_id, description, amount, payment_method, person_vendor, notes, created_by, date)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+-      [expenseId, category_id, description, amount, payment_method || 'cash', person_vendor, notes, req.user.id, date || new Date()]
++      [expenseId, category_id, description, round2(amount), payment_method || 'cash', person_vendor, notes, req.user.id, date || new Date()]
+     );
+     
+     await logAudit(req.user.id, 'Expense recorded', `Expense: ${expenseId}, Amount: ${amount}`);
+diff --git a/backend/src/routes/kegs.js b/backend/src/routes/kegs.js
+index 58e98b0..0ec82c2 100644
+--- a/backend/src/routes/kegs.js
++++ b/backend/src/routes/kegs.js
+@@ -2,7 +2,7 @@ const express = require('express');
+ const router = express.Router();
+ const pool = require('../config/database');
+ const { authenticate, authorize } = require('../middleware/auth');
+-const { logAudit, generateKegId } = require('../utils/helpers');
++const { logAudit, generateKegId, round2 } = require('../utils/helpers');
+ 
+ // Get all kegs
+ router.get('/', authenticate, authorize('manager'), async (req, res) => {
+@@ -80,7 +80,7 @@ router.put('/:id/close', authenticate, authorize('manager'), async (req, res) =>
+       return res.status(404).json({ error: 'Keg not found' });
+     }
+     const k = keg.rows[0];
+-    const profit = parseFloat(k.total_revenue) - parseFloat(k.buying_price);
++    const profit = round2(parseFloat(k.total_revenue) - parseFloat(k.buying_price));
+     
+     const result = await pool.query(
+       'UPDATE kegs SET status = $1, close_date = NOW(), profit = $2 WHERE id = $3 RETURNING *',
+diff --git a/backend/src/routes/purchases.js b/backend/src/routes/purchases.js
+index 29989c7..4366571 100644
+--- a/backend/src/routes/purchases.js
++++ b/backend/src/routes/purchases.js
+@@ -2,7 +2,7 @@ const express = require('express');
+ const router = express.Router();
+ const pool = require('../config/database');
+ const { authenticate, authorize } = require('../middleware/auth');
+-const { logAudit, generatePurchaseId } = require('../utils/helpers');
++const { logAudit, generatePurchaseId, round2 } = require('../utils/helpers');
+ 
+ // Get all purchases
+ router.get('/', authenticate, authorize('manager'), async (req, res) => {
+@@ -50,7 +50,7 @@ router.post('/', authenticate, authorize('manager'), async (req, res) => {
+     
+     const { supplier_id, product_id, quantity, buying_price, invoice_number, notes } = req.body;
+     
+-    const totalCost = parseFloat(quantity) * parseFloat(buying_price);
++    const totalCost = round2(parseFloat(quantity) * parseFloat(buying_price));
+     const purchaseId = generatePurchaseId();
+ 
+     // Insert purchase
+diff --git a/backend/src/routes/sales.js b/backend/src/routes/sales.js
+index da5b2f2..ea650c7 100644
+--- a/backend/src/routes/sales.js
++++ b/backend/src/routes/sales.js
+@@ -2,77 +2,112 @@ const express = require('express');
+ const router = express.Router();
+ const pool = require('../config/database');
+ const { authenticate, authorize } = require('../middleware/auth');
+-const { logAudit, generateSaleId } = require('../utils/helpers');
++const { logAudit, generateSaleId, round2 } = require('../utils/helpers');
+ 
+-// Create a sale (cashier)
++// Create a sale (cashier or manager)
+ router.post('/', authenticate, authorize('cashier', 'manager'), async (req, res) => {
++  const { items, payment_method, client_ref } = req.body;
++
++  if (!Array.isArray(items) || items.length === 0) {
++    return res.status(400).json({ error: 'No items in the sale' });
++  }
++
++  // Idempotency guard: if this client_ref was already processed, return the existing sale.
++  // This makes offline/retry syncs safe (a lost response can no longer create a duplicate).
++  if (client_ref) {
++    const existing = await pool.query('SELECT id FROM sales WHERE client_ref = $1', [client_ref]);
++    if (existing.rows.length > 0) {
++      const saleResult = await pool.query(
++        'SELECT s.*, u.full_name as cashier_name FROM sales s LEFT JOIN users u ON s.user_id = u.id WHERE s.id = $1',
++        [existing.rows[0].id]
++      );
++      const itemsResult = await pool.query(
++        'SELECT * FROM sale_items WHERE sale_id = $1',
++        [existing.rows[0].id]
++      );
++      return res.status(200).json({ ...saleResult.rows[0], items: itemsResult.rows, duplicate: true });
++    }
++  }
++
+   const client = await pool.connect();
+   try {
+     await client.query('BEGIN');
+-    
+-    const { items, payment_method } = req.body;
+-    
+-    if (!items || items.length === 0) {
+-      return res.status(400).json({ error: 'No items in the sale' });
+-    }
+ 
+-    const saleId = generateSaleId();
++    // Pass 1: validate items and price them SERVER-SIDE (any client-supplied unit_price is ignored)
++    const prepared = [];
+     let totalRevenue = 0;
+     let totalCost = 0;
+ 
+-    // Calculate totals
+-    for (const item of items) {
+-      const productResult = await client.query('SELECT * FROM products WHERE id = $1', [item.product_id]);
++    for (const raw of items) {
++      const qty = parseFloat(raw.quantity);
++      const productId = parseInt(raw.product_id, 10);
++      if (!Number.isFinite(qty) || qty <= 0 || !Number.isInteger(productId)) {
++        throw new Error(`Invalid item: ${JSON.stringify(raw)}`);
++      }
++
++      const productResult = await client.query(
++        'SELECT id, name, selling_price, buying_price, current_stock FROM products WHERE id = $1 AND status = $2',
++        [productId, 'active']
++      );
+       if (productResult.rows.length === 0) {
+-        throw new Error(`Product not found: ${item.product_id}`);
++        throw new Error(`Product not found or inactive: ${productId}`);
+       }
+       const product = productResult.rows[0];
+-      
+-      // Check stock availability (allow manager to override)
+-      if (req.user.role === 'cashier' && parseFloat(product.current_stock) < parseFloat(item.quantity)) {
+-        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.current_stock}`);
++
++      const unitPrice = parseFloat(product.selling_price);
++      const unitCost = parseFloat(product.buying_price);
++      if (!Number.isFinite(unitPrice) || unitPrice < 0 || !Number.isFinite(unitCost) || unitCost < 0) {
++        throw new Error(`Invalid pricing for product: ${product.name}`);
+       }
+ 
+-      const itemTotal = parseFloat(item.quantity) * parseFloat(item.unit_price);
+-      const itemCost = parseFloat(item.quantity) * parseFloat(product.buying_price);
+-      totalRevenue += itemTotal;
+-      totalCost += itemCost;
++      const itemTotal = round2(qty * unitPrice);
++      const itemCost = round2(qty * unitCost);
++      totalRevenue = round2(totalRevenue + itemTotal);
++      totalCost = round2(totalCost + itemCost);
++
++      prepared.push({ product, qty, unitPrice, unitCost, itemTotal, itemCost });
+     }
+ 
+-    const totalProfit = totalRevenue - totalCost;
++    const totalProfit = round2(totalRevenue - totalCost);
++    const saleId = generateSaleId();
+ 
+-    // Insert sale
+     const saleResult = await client.query(
+-      `INSERT INTO sales (sale_id, user_id, total_revenue, total_cost, total_profit, payment_method)
+-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+-      [saleId, req.user.id, totalRevenue, totalCost, totalProfit, payment_method || 'cash']
++      `INSERT INTO sales (sale_id, user_id, total_revenue, total_cost, total_profit, payment_method, client_ref)
++       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
++      [saleId, req.user.id, totalRevenue, totalCost, totalProfit, payment_method || 'cash', client_ref || null]
+     );
+-
+     const sale = saleResult.rows[0];
+ 
+-    // Insert sale items and update inventory
+-    for (const item of items) {
+-      const productResult = await client.query('SELECT * FROM products WHERE id = $1', [item.product_id]);
+-      const product = productResult.rows[0];
+-      
+-      const itemTotal = parseFloat(item.quantity) * parseFloat(item.unit_price);
+-      const itemProfit = parseFloat(item.quantity) * (parseFloat(item.unit_price) - parseFloat(product.buying_price));
++    // Pass 2: deduct stock atomically (no negative stock for ANY role) and insert line items
++    const responseItems = [];
++    for (const p of prepared) {
++      const deducted = await client.query(
++        `UPDATE products SET current_stock = current_stock - $1, updated_at = NOW()
++         WHERE id = $2 AND current_stock >= $1 RETURNING id`,
++        [p.qty, p.product.id]
++      );
++      if (deducted.rows.length === 0) {
++        throw new Error(`Insufficient stock for ${p.product.name}. Available: ${p.product.current_stock}`);
++      }
+ 
+       await client.query(
+         `INSERT INTO sale_items (sale_id, product_id, product_name, quantity, unit_price, buying_price, total_price, profit)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+-        [sale.id, item.product_id, product.name, item.quantity, item.unit_price, product.buying_price, itemTotal, itemProfit]
++        [sale.id, p.product.id, p.product.name, p.qty, p.unitPrice, p.unitCost, p.itemTotal, round2(p.itemTotal - p.itemCost)]
+       );
+ 
+-      // Deduct from inventory
+-      const newStock = parseFloat(product.current_stock) - parseFloat(item.quantity);
+-      await client.query('UPDATE products SET current_stock = $1, updated_at = NOW() WHERE id = $2', [newStock, item.product_id]);
+-
+-      // Record inventory transaction
+       await client.query(
+         'INSERT INTO inventory_transactions (product_id, type, quantity, reference_id, reference_type) VALUES ($1, $2, $3, $4, $5)',
+-        [item.product_id, 'sale', -item.quantity, sale.id, 'sale']
++        [p.product.id, 'sale', -p.qty, sale.id, 'sale']
+       );
++
++      responseItems.push({
++        product_id: p.product.id,
++        name: p.product.name,
++        quantity: p.qty,
++        unit_price: p.unitPrice,
++        total_price: p.itemTotal
++      });
+     }
+ 
+     // Record payment
+@@ -82,20 +117,14 @@ router.post('/', authenticate, authorize('cashier', 'manager'), async (req, res)
+     );
+ 
+     await client.query('COMMIT');
+-    
++
+     await logAudit(req.user.id, 'Sale submitted', `Sale: ${saleId}, Total: ${totalRevenue}`);
+-    
+-    res.status(201).json({
+-      ...sale,
+-      items: items.map((item, idx) => ({
+-        ...item,
+-        total_price: parseFloat(item.quantity) * parseFloat(item.unit_price)
+-      }))
+-    });
++
++    res.status(201).json({ ...sale, items: responseItems });
+   } catch (err) {
+     await client.query('ROLLBACK');
+     console.error('Sale error:', err);
+-    res.status(500).json({ error: err.message || 'Server error' });
++    res.status(400).json({ error: err.message || 'Server error' });
+   } finally {
+     client.release();
+   }
+diff --git a/backend/src/server.js b/backend/src/server.js
+index ef0a6fa..0a1feda 100644
+--- a/backend/src/server.js
++++ b/backend/src/server.js
+@@ -21,10 +21,33 @@ const settingsRoutes = require('./routes/settings');
+ 
+ const app = express();
+ 
+-// Middleware
+-app.use(cors());
++// CORS: same-origin by default; cross-origin only when CORS_ORIGIN (comma-separated) is whitelisted
++const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
++app.use(cors({
++  origin(origin, cb) {
++    if (!origin) return cb(null, true); // same-origin / non-browser requests
++    if (allowedOrigins.length === 0) return cb(null, false); // no cross-origin unless whitelisted
++    return cb(null, allowedOrigins.includes(origin));
++  }
++}));
+ app.use(express.json());
+-app.use(morgan('dev'));
++app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
++
++// Security headers (no external dependency)
++app.use((req, res, next) => {
++  res.setHeader('X-Content-Type-Options', 'nosniff');
++  res.setHeader('X-Frame-Options', 'DENY');
++  res.setHeader('Referrer-Policy', 'no-referrer');
++  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
++  if (process.env.NODE_ENV === 'production') {
++    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
++  }
++  res.setHeader(
++    'Content-Security-Policy',
++    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'"
++  );
++  next();
++});
+ 
+ // API Routes
+ app.use('/api/auth', authRoutes);
+@@ -47,8 +70,10 @@ app.get('/api/health', (req, res) => {
+ const frontendBuild = path.join(__dirname, '..', '..', 'frontend', 'dist');
+ app.use(express.static(frontendBuild));
+ 
+-// Catch-all: serve React app for any non-API route
+-app.get('*', (req, res) => {
++// Catch-all: serve React app for any non-API GET (Express 5-safe, avoids the removed '*'
++// wildcard syntax) - API 404s fall through to the error handler.
++app.use((req, res, next) => {
++  if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+   res.sendFile(path.join(frontendBuild, 'index.html'));
+ });
+ 
+diff --git a/backend/src/utils/helpers.js b/backend/src/utils/helpers.js
+index 9ee2fd8..3008484 100644
+--- a/backend/src/utils/helpers.js
++++ b/backend/src/utils/helpers.js
+@@ -65,11 +65,17 @@ function getWeekRange(date = new Date()) {
+   return { weekStart, weekEnd };
+ }
+ 
++// Round a money value to whole cents (KSh x.xx) - avoids float accumulation errors
++function round2(value) {
++  return Math.round((parseFloat(value) + Number.EPSILON) * 100) / 100;
++}
++
+ module.exports = {
+   generateSaleId,
+   generatePurchaseId,
+   generateExpenseId,
+   generateKegId,
+   logAudit,
+-  getWeekRange
++  getWeekRange,
++  round2
+ };
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index faed8e9..fe93e94 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+ import { AuthProvider, useAuth } from './context/AuthContext';
+ import InstallPrompt from './components/InstallPrompt';
+ import Login from './pages/Login';
++import ChangePasswordPage from './pages/ChangePasswordPage';
+ import CashierLayout from './pages/cashier/CashierLayout';
+ import ManagerLayout from './pages/manager/ManagerLayout';
+ import Dashboard from './pages/manager/Dashboard';
+@@ -36,6 +37,9 @@ function AppRoutes() {
+   return (
+     <Routes>
+       <Route path="/login" element={user ? <Navigate to={user.role === 'cashier' ? '/cashier' : '/manager'} /> : <Login />} />
++      <Route path="/change-password" element={
++        !user ? <Navigate to="/login" /> : <ChangePasswordPage />
++      } />
+       
+       {/* Cashier Routes */}
+       <Route path="/cashier" element={
+diff --git a/frontend/src/context/AuthContext.jsx b/frontend/src/context/AuthContext.jsx
+index c84bcf6..d56287f 100644
+--- a/frontend/src/context/AuthContext.jsx
++++ b/frontend/src/context/AuthContext.jsx
+@@ -6,12 +6,15 @@ const AuthContext = createContext(null);
+ export function AuthProvider({ children }) {
+   const [user, setUser] = useState(null);
+   const [loading, setLoading] = useState(true);
++  const [mustChangePassword, setMustChangePassword] = useState(false);
+ 
+   useEffect(() => {
+     const token = localStorage.getItem('token');
+     const savedUser = localStorage.getItem('user');
+     if (token && savedUser) {
+-      setUser(JSON.parse(savedUser));
++      const u = JSON.parse(savedUser);
++      setUser(u);
++      setMustChangePassword(!!u.must_change_password);
+     }
+     setLoading(false);
+   }, []);
+@@ -22,6 +25,7 @@ export function AuthProvider({ children }) {
+     localStorage.setItem('token', token);
+     localStorage.setItem('user', JSON.stringify(userData));
+     setUser(userData);
++    setMustChangePassword(!!userData.must_change_password);
+     return userData;
+   };
+ 
+@@ -32,10 +36,11 @@ export function AuthProvider({ children }) {
+     localStorage.removeItem('token');
+     localStorage.removeItem('user');
+     setUser(null);
++    setMustChangePassword(false);
+   };
+ 
+   return (
+-    <AuthContext.Provider value={{ user, login, logout, loading }}>
++    <AuthContext.Provider value={{ user, login, logout, loading, mustChangePassword, setMustChangePassword }}>
+       {children}
+     </AuthContext.Provider>
+   );
+diff --git a/frontend/src/pages/ChangePasswordPage.jsx b/frontend/src/pages/ChangePasswordPage.jsx
+new file mode 100644
+index 0000000..fc77a34
+--- /dev/null
++++ b/frontend/src/pages/ChangePasswordPage.jsx
+@@ -0,0 +1,167 @@
++import { useState } from 'react';
++import { useAuth } from '../context/AuthContext';
++import { useNavigate } from 'react-router-dom';
++import api from '../utils/api';
++
++// First-login password change (required for seeded users / forced resets)
++export default function ChangePasswordPage() {
++  const { user, setMustChangePassword } = useAuth();
++  const navigate = useNavigate();
++  const [currentPassword, setCurrentPassword] = useState('');
++  const [newPassword, setNewPassword] = useState('');
++  const [confirm, setConfirm] = useState('');
++  const [error, setError] = useState('');
++  const [loading, setLoading] = useState(false);
++
++  const handleSubmit = async (e) => {
++    e.preventDefault();
++    setError('');
++
++    if (newPassword.length < 8) {
++      setError('New password must be at least 8 characters');
++      return;
++    }
++    if (newPassword !== confirm) {
++      setError('Passwords do not match');
++      return;
++    }
++
++    setLoading(true);
++    try {
++      await api.put('/auth/change-password', {
++        current_password: currentPassword,
++        new_password: newPassword,
++      });
++      setMustChangePassword(false);
++      navigate(user?.role === 'cashier' ? '/cashier' : '/manager');
++    } catch (err) {
++      setError(err.response?.data?.error || 'Failed to change password');
++    }
++    setLoading(false);
++  };
++
++  return (
++    <div style={styles.container}>
++      <div style={styles.card}>
++        <div style={styles.header}>
++          <h1 style={styles.title}>🔒 Change Password</h1>
++          <p style={styles.subtitle}>
++            Hi {user?.full_name || user?.username} — you must set a new password before continuing.
++          </p>
++        </div>
++        <form onSubmit={handleSubmit}>
++          <div style={styles.field}>
++            <label style={styles.label}>Current Password</label>
++            <input
++              type="password"
++              value={currentPassword}
++              onChange={(e) => setCurrentPassword(e.target.value)}
++              style={styles.input}
++              required
++              autoFocus
++            />
++          </div>
++          <div style={styles.field}>
++            <label style={styles.label}>New Password (min 8 characters)</label>
++            <input
++              type="password"
++              value={newPassword}
++              onChange={(e) => setNewPassword(e.target.value)}
++              style={styles.input}
++              required
++            />
++          </div>
++          <div style={styles.field}>
++            <label style={styles.label}>Confirm New Password</label>
++            <input
++              type="password"
++              value={confirm}
++              onChange={(e) => setConfirm(e.target.value)}
++              style={styles.input}
++              required
++            />
++          </div>
++          {error && <div style={styles.error}>{error}</div>}
++          <button type="submit" style={styles.button} disabled={loading}>
++            {loading ? 'Saving...' : 'Update Password'}
++          </button>
++        </form>
++      </div>
++    </div>
++  );
++}
++
++const styles = {
++  container: {
++    minHeight: '100vh',
++    display: 'flex',
++    alignItems: 'center',
++    justifyContent: 'center',
++    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
++    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
++  },
++  card: {
++    background: '#fff',
++    borderRadius: '16px',
++    padding: '40px',
++    width: '400px',
++    maxWidth: '90vw',
++    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
++  },
++  header: {
++    textAlign: 'center',
++    marginBottom: '32px',
++  },
++  title: {
++    margin: 0,
++    fontSize: '26px',
++    color: '#1a1a2e',
++  },
++  subtitle: {
++    margin: '8px 0 0',
++    color: '#666',
++    fontSize: '14px',
++    lineHeight: '1.5',
++  },
++  field: {
++    marginBottom: '20px',
++  },
++  label: {
++    display: 'block',
++    marginBottom: '6px',
++    fontWeight: '600',
++    color: '#333',
++    fontSize: '14px',
++  },
++  input: {
++    width: '100%',
++    padding: '12px 16px',
++    border: '2px solid #e0e0e0',
++    borderRadius: '8px',
++    fontSize: '16px',
++    outline: 'none',
++    transition: 'border-color 0.2s',
++    boxSizing: 'border-box',
++  },
++  button: {
++    width: '100%',
++    padding: '14px',
++    background: 'linear-gradient(135deg, #0f3460, #1a1a2e)',
++    color: '#fff',
++    border: 'none',
++    borderRadius: '8px',
++    fontSize: '16px',
++    fontWeight: '600',
++    cursor: 'pointer',
++    marginTop: '8px',
++  },
++  error: {
++    background: '#fee',
++    color: '#c00',
++    padding: '10px 14px',
++    borderRadius: '8px',
++    marginBottom: '16px',
++    fontSize: '14px',
++    border: '1px solid #fcc',
++  },
++};
+diff --git a/frontend/src/pages/Login.jsx b/frontend/src/pages/Login.jsx
+index 8c697b3..98c9d3a 100644
+--- a/frontend/src/pages/Login.jsx
++++ b/frontend/src/pages/Login.jsx
+@@ -16,7 +16,9 @@ export default function Login() {
+     setLoading(true);
+     try {
+       const userData = await login(username, password);
+-      if (userData.role === 'cashier') {
++      if (userData.must_change_password) {
++        navigate('/change-password');
++      } else if (userData.role === 'cashier') {
+         navigate('/cashier');
+       } else {
+         navigate('/manager');
+diff --git a/frontend/src/utils/offlineStorage.js b/frontend/src/utils/offlineStorage.js
+index a22e4be..ae5e736 100644
+--- a/frontend/src/utils/offlineStorage.js
++++ b/frontend/src/utils/offlineStorage.js
+@@ -1,6 +1,6 @@
+ // IndexedDB offline storage for sales and products
+ const DB_NAME = 'trippletone_pos_offline';
+-const DB_VERSION = 1;
++const DB_VERSION = 2;
+ 
+ function openDB() {
+   return new Promise((resolve, reject) => {
+@@ -12,6 +12,13 @@ function openDB() {
+         const store = db.createObjectStore('offlineSales', { keyPath: 'id', autoIncrement: true });
+         store.createIndex('synced', 'synced', { unique: false });
+         store.createIndex('timestamp', 'timestamp', { unique: false });
++        store.createIndex('offlineId', 'offlineId', { unique: true });
++      } else {
++        // Upgrade path: ensure the offlineId index exists (markSaleSynced depends on it)
++        const store = request.transaction.objectStore('offlineSales');
++        if (!store.indexNames.contains('offlineId')) {
++          store.createIndex('offlineId', 'offlineId', { unique: true });
++        }
+       }
+       // Cached products for offline POS
+       if (!db.objectStoreNames.contains('products')) {
+diff --git a/frontend/src/utils/syncManager.js b/frontend/src/utils/syncManager.js
+index 2d53172..bf450e5 100644
+--- a/frontend/src/utils/syncManager.js
++++ b/frontend/src/utils/syncManager.js
+@@ -19,7 +19,8 @@ export async function syncOfflineSales() {
+       try {
+         await api.post('/sales', {
+           items: sale.items,
+-          payment_method: sale.payment_method
++          payment_method: sale.payment_method,
++          client_ref: sale.offlineId  // idempotency key: retries of a succeeded post return the original sale
+         });
+         await markSaleSynced(sale.offlineId);
+         synced++;
+diff --git a/render.yaml b/render.yaml
+index effbfca..fbacdae 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -12,5 +12,4 @@ services:
+         generateValue: true
+       - key: NODE_ENV
+         value: production
+-      - key: PORT
+-        value: 5000
++      # PORT is injected by Render; server.js falls back to 5000 locally.

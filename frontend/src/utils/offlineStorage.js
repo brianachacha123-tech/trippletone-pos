@@ -1,6 +1,6 @@
 // IndexedDB offline storage for sales and products
 const DB_NAME = 'trippletone_pos_offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -12,6 +12,13 @@ function openDB() {
         const store = db.createObjectStore('offlineSales', { keyPath: 'id', autoIncrement: true });
         store.createIndex('synced', 'synced', { unique: false });
         store.createIndex('timestamp', 'timestamp', { unique: false });
+        store.createIndex('offlineId', 'offlineId', { unique: true });
+      } else {
+        // Upgrade path: ensure the offlineId index exists (markSaleSynced depends on it)
+        const store = request.transaction.objectStore('offlineSales');
+        if (!store.indexNames.contains('offlineId')) {
+          store.createIndex('offlineId', 'offlineId', { unique: true });
+        }
       }
       // Cached products for offline POS
       if (!db.objectStoreNames.contains('products')) {

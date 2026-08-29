@@ -19,7 +19,8 @@ export async function syncOfflineSales() {
       try {
         await api.post('/sales', {
           items: sale.items,
-          payment_method: sale.payment_method
+          payment_method: sale.payment_method,
+          client_ref: sale.offlineId  // idempotency key: retries of a succeeded post return the original sale
         });
         await markSaleSynced(sale.offlineId);
         synced++;

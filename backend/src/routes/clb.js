@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const { logAudit } = require('../utils/helpers');
+const { logAudit, round2 } = require('../utils/helpers');
 
 // Get all CLB transactions
 router.get('/', authenticate, authorize('manager'), async (req, res) => {
@@ -52,8 +52,8 @@ router.get('/summary', authenticate, authorize('manager'), async (req, res) => {
       total_sales: totalSales,
       revenue: totalSales,
       cost: totalPurchases,
-      profit: totalSales - totalPurchases,
-      available: totalSales - totalPurchases
+      profit: round2(totalSales - totalPurchases),
+      available: round2(totalSales - totalPurchases)
     });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

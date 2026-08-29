@@ -6,13 +6,49 @@ const pool = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 const { logAudit } = require('../utils/helpers');
 
+// Simple in-memory login rate limiter (per IP + username)
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const LOGIN_MAX_FAILURES = 5;
+const loginFailures = new Map();
+
+function loginKey(username, ip) {
+  return `${ip}|${String(username || '').toLowerCase()}`;
+}
+
+function recordLoginFailure(username, ip) {
+  const key = loginKey(username, ip);
+  const now = Date.now();
+  const entry = loginFailures.get(key) || { count: 0, firstAt: now };
+  if (now - entry.firstAt > LOGIN_WINDOW_MS) {
+    entry.count = 0;
+    entry.firstAt = now;
+  }
+  entry.count += 1;
+  loginFailures.set(key, entry);
+  return entry.count >= LOGIN_MAX_FAILURES;
+}
+
+function isLoginBlocked(username, ip) {
+  const entry = loginFailures.get(loginKey(username, ip));
+  return !!entry && (Date.now() - entry.firstAt <= LOGIN_WINDOW_MS) && entry.count >= LOGIN_MAX_FAILURES;
+}
+
+function clearLoginFailures(username, ip) {
+  loginFailures.delete(loginKey(username, ip));
+}
+
 // Login
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
+    }
+
+    if (isLoginBlocked(username, ip)) {
+      return res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
     }
 
     const result = await pool.query(
@@ -21,6 +57,9 @@ router.post('/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      if (recordLoginFailure(username, ip)) {
+        return res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
+      }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -28,8 +67,13 @@ router.post('/login', async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password_hash);
     
     if (!validPassword) {
+      if (recordLoginFailure(username, ip)) {
+        return res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
+      }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    clearLoginFailures(username, ip);
 
     const token = jwt.sign(
       { userId: user.id, role: user.role_name },
@@ -45,7 +89,8 @@ router.post('/login', async (req, res) => {
         id: user.id,
         username: user.username,
         full_name: user.full_name,
-        role: user.role_name
+        role: user.role_name,
+        must_change_password: user.must_change_password
       }
     });
   } catch (err) {
@@ -71,7 +116,11 @@ router.get('/profile', authenticate, async (req, res) => {
 router.put('/change-password', authenticate, async (req, res) => {
   try {
     const { current_password, new_password } = req.body;
-    
+
+    if (!new_password || new_password.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
     const result = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
     const validPassword = await bcrypt.compare(current_password, result.rows[0].password_hash);
     
@@ -80,7 +129,10 @@ router.put('/change-password', authenticate, async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(new_password, 10);
-    await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, req.user.id]);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, must_change_password = false, updated_at = NOW() WHERE id = $2',
+      [passwordHash, req.user.id]
+    );
     
     await logAudit(req.user.id, 'Password changed');
     res.json({ message: 'Password changed successfully' });

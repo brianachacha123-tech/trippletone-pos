@@ -65,11 +65,17 @@ function getWeekRange(date = new Date()) {
   return { weekStart, weekEnd };
 }
 
+// Round a money value to whole cents (KSh x.xx) - avoids float accumulation errors
+function round2(value) {
+  return Math.round((parseFloat(value) + Number.EPSILON) * 100) / 100;
+}
+
 module.exports = {
   generateSaleId,
   generatePurchaseId,
   generateExpenseId,
   generateKegId,
   logAudit,
-  getWeekRange
+  getWeekRange,
+  round2
 };

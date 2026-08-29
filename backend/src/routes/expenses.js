@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const { logAudit, generateExpenseId } = require('../utils/helpers');
+const { logAudit, generateExpenseId, round2 } = require('../utils/helpers');
 
 // Get all expenses
 router.get('/', authenticate, authorize('manager'), async (req, res) => {
@@ -73,7 +73,7 @@ router.post('/', authenticate, authorize('manager'), async (req, res) => {
     const result = await pool.query(
       `INSERT INTO expenses (expense_id, category_id, description, amount, payment_method, person_vendor, notes, created_by, date)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [expenseId, category_id, description, amount, payment_method || 'cash', person_vendor, notes, req.user.id, date || new Date()]
+      [expenseId, category_id, description, round2(amount), payment_method || 'cash', person_vendor, notes, req.user.id, date || new Date()]
     );
     
     await logAudit(req.user.id, 'Expense recorded', `Expense: ${expenseId}, Amount: ${amount}`);

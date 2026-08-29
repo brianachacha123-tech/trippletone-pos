@@ -12,5 +12,4 @@ services:
         generateValue: true
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5000
+      # PORT is injected by Render; server.js falls back to 5000 locally.

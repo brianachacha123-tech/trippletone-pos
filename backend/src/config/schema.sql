@@ -18,9 +18,13 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(20),
   email VARCHAR(200),
   is_active BOOLEAN DEFAULT true,
+  must_change_password BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Upgrade path for existing databases
+ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS settings (
   id SERIAL PRIMARY KEY,
@@ -92,6 +96,7 @@ CREATE TABLE IF NOT EXISTS supplier_products (
 CREATE TABLE IF NOT EXISTS sales (
   id SERIAL PRIMARY KEY,
   sale_id VARCHAR(50) UNIQUE NOT NULL,
+  client_ref VARCHAR(100),
   user_id INTEGER REFERENCES users(id),
   date TIMESTAMP DEFAULT NOW(),
   total_revenue DECIMAL(12,2) DEFAULT 0,
@@ -101,6 +106,10 @@ CREATE TABLE IF NOT EXISTS sales (
   status VARCHAR(20) DEFAULT 'completed',
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Upgrade path for existing databases + idempotency index for offline sync
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS client_ref VARCHAR(100);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_client_ref ON sales(client_ref) WHERE client_ref IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS sale_items (
   id SERIAL PRIMARY KEY,

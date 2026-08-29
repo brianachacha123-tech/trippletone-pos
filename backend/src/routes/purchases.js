@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const { logAudit, generatePurchaseId } = require('../utils/helpers');
+const { logAudit, generatePurchaseId, round2 } = require('../utils/helpers');
 
 // Get all purchases
 router.get('/', authenticate, authorize('manager'), async (req, res) => {
@@ -50,7 +50,7 @@ router.post('/', authenticate, authorize('manager'), async (req, res) => {
     
     const { supplier_id, product_id, quantity, buying_price, invoice_number, notes } = req.body;
     
-    const totalCost = parseFloat(quantity) * parseFloat(buying_price);
+    const totalCost = round2(parseFloat(quantity) * parseFloat(buying_price));
     const purchaseId = generatePurchaseId();
 
     // Insert purchase

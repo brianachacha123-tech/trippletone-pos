@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const { logAudit, generateKegId } = require('../utils/helpers');
+const { logAudit, generateKegId, round2 } = require('../utils/helpers');
 
 // Get all kegs
 router.get('/', authenticate, authorize('manager'), async (req, res) => {
@@ -80,7 +80,7 @@ router.put('/:id/close', authenticate, authorize('manager'), async (req, res) =>
       return res.status(404).json({ error: 'Keg not found' });
     }
     const k = keg.rows[0];
-    const profit = parseFloat(k.total_revenue) - parseFloat(k.buying_price);
+    const profit = round2(parseFloat(k.total_revenue) - parseFloat(k.buying_price));
     
     const result = await pool.query(
       'UPDATE kegs SET status = $1, close_date = NOW(), profit = $2 WHERE id = $3 RETURNING *',

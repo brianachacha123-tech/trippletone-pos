@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import InstallPrompt from './components/InstallPrompt';
 import Login from './pages/Login';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import CashierLayout from './pages/cashier/CashierLayout';
 import ManagerLayout from './pages/manager/ManagerLayout';
 import Dashboard from './pages/manager/Dashboard';
@@ -36,6 +37,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to={user.role === 'cashier' ? '/cashier' : '/manager'} /> : <Login />} />
+      <Route path="/change-password" element={
+        !user ? <Navigate to="/login" /> : <ChangePasswordPage />
+      } />
       
       {/* Cashier Routes */}
       <Route path="/cashier" element={

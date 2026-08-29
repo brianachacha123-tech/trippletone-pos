@@ -12,28 +12,32 @@ async function initDatabase() {
     await client.query(schema);
     console.log('Database schema created successfully');
 
-    // Create default admin user
+    // Create default users with env-provided (or fallback) passwords.
+    // Passwords are NEVER logged. Seeded users are flagged must_change_password=true
+    // so they must set their own password on first login (enforced by middleware/auth.js).
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
+    const cashierPassword = process.env.DEFAULT_CASHIER_PASSWORD || 'cashier123';
+
     const adminCheck = await client.query('SELECT id FROM users WHERE username = $1', ['admin']);
     if (adminCheck.rows.length === 0) {
       const managerRole = await client.query('SELECT id FROM roles WHERE name = $1', ['manager']);
-      const passwordHash = await bcrypt.hash('admin123', 10);
+      const passwordHash = await bcrypt.hash(adminPassword, 10);
       await client.query(
-        'INSERT INTO users (username, password_hash, full_name, role_id) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO users (username, password_hash, full_name, role_id, must_change_password) VALUES ($1, $2, $3, $4, true)',
         ['admin', passwordHash, 'System Administrator', managerRole.rows[0].id]
       );
-      console.log('Default admin user created (username: admin, password: admin123)');
+      console.log('Default admin user created (username: admin) - password change required on first login');
     }
 
-    // Create default cashier user
     const cashierCheck = await client.query('SELECT id FROM users WHERE username = $1', ['cashier']);
     if (cashierCheck.rows.length === 0) {
       const cashierRole = await client.query('SELECT id FROM roles WHERE name = $1', ['cashier']);
-      const passwordHash = await bcrypt.hash('cashier123', 10);
+      const passwordHash = await bcrypt.hash(cashierPassword, 10);
       await client.query(
-        'INSERT INTO users (username, password_hash, full_name, role_id) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO users (username, password_hash, full_name, role_id, must_change_password) VALUES ($1, $2, $3, $4, true)',
         ['cashier', passwordHash, 'Default Cashier', cashierRole.rows[0].id]
       );
-      console.log('Default cashier user created (username: cashier, password: cashier123)');
+      console.log('Default cashier user created (username: cashier) - password change required on first login');
     }
 
     console.log('Database initialization complete');
