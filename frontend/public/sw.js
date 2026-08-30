@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trippletone-pos-v2';
+const CACHE_NAME = 'trippletone-pos-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -47,7 +47,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets - cache first, then network
+  // Navigation / HTML - NETWORK FIRST so users always get the latest build.
+  // (The old cache-first rule served stale index.html indefinitely - that is
+  // exactly why the quantity-pad update was invisible to installed clients.)
+  const isNavigate = request.mode === 'navigate' ||
+    (request.headers.get('accept') || '').includes('text/html');
+  if (isNavigate) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match('/index.html'))
+        )
+    );
+    return;
+  }
+
+  // Static assets (hashed, immutable) - cache first, then network
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
@@ -67,11 +89,4 @@ self.addEventListener('fetch', (event) => {
       });
     })
   );
-});
-
-// Handle messages
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
 });

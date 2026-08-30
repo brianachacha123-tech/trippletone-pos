@@ -1,10 +1,14 @@
+# Render Blueprint for TrippleTone POS
+# plan: starter = always-on (~$7/mo). Do NOT use free for a live register:
+# free spins down after ~15 min idle and cold-starts 30-60s on the next request.
 services:
   - type: web
     name: trippletone-bar-pos
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: cd backend && npm install && cd ../frontend && npm install && npm run build
     startCommand: cd backend && node src/server.js
+    healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -13,3 +17,11 @@ services:
       - key: NODE_ENV
         value: production
       # PORT is injected by Render; server.js falls back to 5000 locally.
+      # Optional: first-run seed passwords (users are forced to change on first login):
+      # - key: DEFAULT_ADMIN_PASSWORD
+      #   sync: false
+      # - key: DEFAULT_CASHIER_PASSWORD
+      #   sync: false
+      # Only needed if the frontend calls the API from a different domain:
+      # - key: CORS_ORIGIN
+      #   value: https://your-domain.com
