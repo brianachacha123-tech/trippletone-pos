@@ -37,44 +37,46 @@ export default function SuppliersPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header page-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1>🤝 Suppliers Management</h1>
+          <h1>🤝 Suppliers</h1>
           <p>Manage your product suppliers</p>
         </div>
         <button className="btn btn-primary" onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', location: '', notes: '' }); setShowModal(true); }}>+ Add Supplier</button>
       </div>
 
       <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Supplier Name</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Location</th>
-              <th>Purchases</th>
-              <th>Total Value</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {suppliers.map(s => (
-              <tr key={s.id}>
-                <td style={{ fontWeight: 600 }}>{s.name}</td>
-                <td>{s.phone || '-'}</td>
-                <td>{s.email || '-'}</td>
-                <td>{s.location || '-'}</td>
-                <td>{s.purchase_count}</td>
-                <td>{fmt(s.total_purchases)}</td>
-                <td>
-                  <button className="btn btn-sm btn-outline" onClick={() => { setEditing(s); setForm({ name: s.name, phone: s.phone || '', email: s.email || '', location: s.location || '', notes: s.notes || '' }); setShowModal(true); }} style={{ marginRight: '4px' }}>Edit</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.id)}>Delete</button>
-                </td>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '700px' }}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Location</th>
+                <th>Purchases</th>
+                <th>Total Value</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {suppliers.map(s => (
+                <tr key={s.id}>
+                  <td style={{ fontWeight: 600 }}>{s.name}</td>
+                  <td>{s.phone || '-'}</td>
+                  <td>{s.email || '-'}</td>
+                  <td>{s.location || '-'}</td>
+                  <td>{s.purchase_count}</td>
+                  <td>{fmt(s.total_purchases)}</td>
+                  <td>
+                    <button className="btn btn-sm btn-outline" onClick={() => { setEditing(s); setForm({ name: s.name, phone: s.phone || '', email: s.email || '', location: s.location || '', notes: s.notes || '' }); setShowModal(true); }} style={{ marginRight: '4px' }}>Edit</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.id)}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (
@@ -83,8 +85,10 @@ export default function SuppliersPage() {
             <h2>{editing ? 'Edit Supplier' : 'Add Supplier'}</h2>
             <form onSubmit={handleSubmit}>
               <div className="form-group"><label>Supplier Name</label><input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div>
-              <div className="form-group"><label>Phone</label><input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} /></div>
-              <div className="form-group"><label>Email</label><input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="form-grid-2">
+                <div className="form-group"><label>Phone</label><input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} /></div>
+                <div className="form-group"><label>Email</label><input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+              </div>
               <div className="form-group"><label>Location</label><input type="text" value={form.location} onChange={e => setForm({...form, location: e.target.value})} /></div>
               <div className="form-group"><label>Notes</label><input type="text" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
               <div className="modal-actions">

@@ -43,7 +43,7 @@ export default function InventoryPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>🏪 Inventory Management</h1>
+        <h1>🏪 Inventory</h1>
         <p>Monitor stock levels and inventory transactions</p>
       </div>
 
@@ -53,7 +53,7 @@ export default function InventoryPage() {
           <div className="value">{products.length}</div>
         </div>
         <div className="kpi-card warning">
-          <div className="label">Low Stock Items</div>
+          <div className="label">Low Stock</div>
           <div className="value">{lowStock.filter(l => l.stock_status === 'LOW STOCK').length}</div>
         </div>
         <div className="kpi-card expense">
@@ -61,58 +61,60 @@ export default function InventoryPage() {
           <div className="value">{lowStock.filter(l => l.stock_status === 'OUT OF STOCK').length}</div>
         </div>
         <div className="kpi-card">
-          <div className="label">Total Stock Value</div>
+          <div className="label">Stock Value</div>
           <div className="value">{fmt(products.reduce((sum, p) => sum + parseFloat(p.current_stock) * parseFloat(p.buying_price), 0))}</div>
         </div>
       </div>
 
       <div className="tabs">
-        <button className={`tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>All Products</button>
+        <button className={`tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>All</button>
         <button className={`tab ${tab === 'low' ? 'active' : ''}`} onClick={() => setTab('low')}>Low Stock</button>
         <button className={`tab ${tab === 'out' ? 'active' : ''}`} onClick={() => setTab('out')}>Out of Stock</button>
       </div>
 
       <div className="filters-bar">
-        <input type="text" placeholder="🔍 Search products..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input type="text" placeholder="🔍 Search products..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%' }} />
       </div>
 
       <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Category</th>
-              <th>Current Stock</th>
-              <th>Min Stock</th>
-              <th>Buying Price</th>
-              <th>Stock Value</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredProducts.map(p => {
-              const stockStatus = p.current_stock === 0 ? 'OUT OF STOCK' : p.current_stock <= p.minimum_stock ? 'LOW STOCK' : 'OK';
-              const stockVal = parseFloat(p.current_stock) * parseFloat(p.buying_price);
-              return (
-                <tr key={p.id}>
-                  <td style={{ fontWeight: 600 }}>{p.name}</td>
-                  <td><span className="badge badge-info">{p.category_name}</span></td>
-                  <td style={{ fontWeight: 600 }}>{parseFloat(p.current_stock).toLocaleString()} {p.unit}</td>
-                  <td>{parseFloat(p.minimum_stock).toLocaleString()}</td>
-                  <td>{fmt(p.buying_price)}</td>
-                  <td>{fmt(stockVal)}</td>
-                  <td>
-                    <span className={`badge badge-${stockStatus === 'OK' ? 'success' : stockStatus === 'LOW STOCK' ? 'warning' : 'danger'}`}>
-                      {stockStatus}
-                    </span>
-                  </td>
-                  <td><button className="btn btn-sm btn-primary" onClick={() => setAdjustModal(p)}>Adjust</button></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '750px' }}>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Stock</th>
+                <th>Min</th>
+                <th>Buy Price</th>
+                <th>Value</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map(p => {
+                const stockStatus = p.current_stock === 0 ? 'OUT OF STOCK' : p.current_stock <= p.minimum_stock ? 'LOW STOCK' : 'OK';
+                const stockVal = parseFloat(p.current_stock) * parseFloat(p.buying_price);
+                return (
+                  <tr key={p.id}>
+                    <td style={{ fontWeight: 600 }}>{p.name}</td>
+                    <td><span className="badge badge-info">{p.category_name}</span></td>
+                    <td style={{ fontWeight: 600 }}>{parseFloat(p.current_stock).toLocaleString()} {p.unit}</td>
+                    <td>{parseFloat(p.minimum_stock).toLocaleString()}</td>
+                    <td>{fmt(p.buying_price)}</td>
+                    <td>{fmt(stockVal)}</td>
+                    <td>
+                      <span className={`badge badge-${stockStatus === 'OK' ? 'success' : stockStatus === 'LOW STOCK' ? 'warning' : 'danger'}`}>
+                        {stockStatus}
+                      </span>
+                    </td>
+                    <td><button className="btn btn-sm btn-primary" onClick={() => setAdjustModal(p)}>Adjust</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {adjustModal && (
@@ -130,7 +132,7 @@ export default function InventoryPage() {
             </div>
             <div className="modal-actions">
               <button className="btn btn-outline" onClick={() => setAdjustModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAdjust}>Apply Adjustment</button>
+              <button className="btn btn-primary" onClick={handleAdjust}>Apply</button>
             </div>
           </div>
         </div>

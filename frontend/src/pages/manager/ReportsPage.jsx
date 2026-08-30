@@ -11,16 +11,16 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
 
   const reportTypes = [
-    { id: 'sales', label: '💰 Sales Report' },
-    { id: 'profit', label: '📈 Profit Report' },
-    { id: 'expenses', label: '💸 Expense Report' },
-    { id: 'purchases', label: '📦 Purchase Report' },
-    { id: 'product-performance', label: '🏷️ Product Performance' },
-    { id: 'cashier', label: '👥 Cashier Performance' },
-    { id: 'monthly', label: '📅 Monthly Report' },
-    { id: 'yearly', label: '📆 Yearly Report' },
-    { id: 'keg', label: '🍺 Keg Report' },
-    { id: 'clb', label: '🍸 CLB Report' },
+    { id: 'sales', label: '💰 Sales' },
+    { id: 'profit', label: '📈 Profit' },
+    { id: 'expenses', label: '💸 Expenses' },
+    { id: 'purchases', label: '📦 Purchases' },
+    { id: 'product-performance', label: '🏷️ Products' },
+    { id: 'cashier', label: '👥 Cashiers' },
+    { id: 'monthly', label: '📅 Monthly' },
+    { id: 'yearly', label: '📆 Yearly' },
+    { id: 'keg', label: '🍺 Kegs' },
+    { id: 'clb', label: '🍸 CLB' },
   ];
 
   useEffect(() => { loadReport(); }, [reportType, month, year]);
@@ -68,7 +68,6 @@ export default function ReportsPage() {
     if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading...</div>;
     if (data.length === 0) return <div style={{ padding: '40px', textAlign: 'center', color: '#888' }}>No data for this report</div>;
 
-    // Monthly/Yearly summary cards
     if (reportType === 'monthly' || reportType === 'yearly') {
       const d = data[0];
       return (
@@ -79,127 +78,134 @@ export default function ReportsPage() {
           <div className="kpi-card expense"><div className="label">Expenses</div><div className="value">{fmt(d.expenses)}</div></div>
           <div className="kpi-card profit"><div className="label">Net Profit</div><div className="value">{fmt(d.net_profit)}</div></div>
           <div className="kpi-card info"><div className="label">Transactions</div><div className="value">{d.transactions}</div></div>
-          {d.purchases_total && <div className="kpi-card"><div className="label">Purchases</div><div className="value">{fmt(d.purchases_total)}</div></div>}
-          {d.stock_value && <div className="kpi-card"><div className="label">Stock Value</div><div className="value">{fmt(d.stock_value)}</div></div>}
         </div>
       );
     }
 
-    // Default table
     if (reportType === 'sales') {
       return (
-        <table>
-          <thead>
-            <tr><th>Sale ID</th><th>Date</th><th>Cashier</th><th>Payment</th><th>Revenue</th><th>Cost</th><th>Profit</th></tr>
-          </thead>
-          <tbody>
-            {data.map(s => (
-              <tr key={s.id}>
-                <td style={{ fontFamily: 'monospace' }}>{s.sale_id}</td>
-                <td>{new Date(s.date).toLocaleDateString()}</td>
-                <td>{s.cashier_name}</td>
-                <td><span className="badge badge-info">{s.payment_method}</span></td>
-                <td style={{ fontWeight: 600 }}>{fmt(s.total_revenue)}</td>
-                <td>{fmt(s.total_cost)}</td>
-                <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(s.total_profit)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '800px' }}>
+            <thead>
+              <tr><th>Sale ID</th><th>Date</th><th>Cashier</th><th>Payment</th><th>Revenue</th><th>Cost</th><th>Profit</th></tr>
+            </thead>
+            <tbody>
+              {data.map(s => (
+                <tr key={s.id}>
+                  <td style={{ fontFamily: 'monospace' }}>{s.sale_id}</td>
+                  <td>{new Date(s.date).toLocaleDateString()}</td>
+                  <td>{s.cashier_name}</td>
+                  <td><span className="badge badge-info">{s.payment_method}</span></td>
+                  <td style={{ fontWeight: 600 }}>{fmt(s.total_revenue)}</td>
+                  <td>{fmt(s.total_cost)}</td>
+                  <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(s.total_profit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
     if (reportType === 'expenses') {
       return (
-        <table>
-          <thead><tr><th>ID</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Payment</th></tr></thead>
-          <tbody>
-            {data.map(e => (
-              <tr key={e.id}>
-                <td style={{ fontFamily: 'monospace' }}>{e.expense_id}</td>
-                <td>{new Date(e.date).toLocaleDateString()}</td>
-                <td><span className="badge badge-info">{e.category_name}</span></td>
-                <td>{e.description}</td>
-                <td style={{ fontWeight: 600, color: '#e74c3c' }}>{fmt(e.amount)}</td>
-                <td>{e.payment_method}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '700px' }}>
+            <thead><tr><th>ID</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Payment</th></tr></thead>
+            <tbody>
+              {data.map(e => (
+                <tr key={e.id}>
+                  <td style={{ fontFamily: 'monospace' }}>{e.expense_id}</td>
+                  <td>{new Date(e.date).toLocaleDateString()}</td>
+                  <td><span className="badge badge-info">{e.category_name}</span></td>
+                  <td>{e.description}</td>
+                  <td style={{ fontWeight: 600, color: '#e74c3c' }}>{fmt(e.amount)}</td>
+                  <td>{e.payment_method}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
     if (reportType === 'product-performance') {
       return (
-        <table>
-          <thead><tr><th>Product</th><th>Buy Price</th><th>Sell Price</th><th>Profit/Unit</th><th>Units Sold</th><th>Revenue</th><th>Cost</th><th>Profit</th></tr></thead>
-          <tbody>
-            {data.map((p, i) => (
-              <tr key={i}>
-                <td style={{ fontWeight: 600 }}>{p.product}</td>
-                <td>{fmt(p.buying_price)}</td>
-                <td>{fmt(p.selling_price)}</td>
-                <td style={{ color: '#27ae60' }}>{fmt(p.unit_profit)}</td>
-                <td>{parseFloat(p.units_sold).toLocaleString()}</td>
-                <td>{fmt(p.revenue)}</td>
-                <td>{fmt(p.cost)}</td>
-                <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(p.profit)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '800px' }}>
+            <thead><tr><th>Product</th><th>Buy</th><th>Sell</th><th>Profit/Unit</th><th>Sold</th><th>Revenue</th><th>Profit</th></tr></thead>
+            <tbody>
+              {data.map((p, i) => (
+                <tr key={i}>
+                  <td style={{ fontWeight: 600 }}>{p.product}</td>
+                  <td>{fmt(p.buying_price)}</td>
+                  <td>{fmt(p.selling_price)}</td>
+                  <td style={{ color: '#27ae60' }}>{fmt(p.unit_profit)}</td>
+                  <td>{parseFloat(p.units_sold).toLocaleString()}</td>
+                  <td>{fmt(p.revenue)}</td>
+                  <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(p.profit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
     if (reportType === 'cashier') {
       return (
-        <table>
-          <thead><tr><th>Cashier</th><th>Transactions</th><th>Revenue</th><th>Profit</th><th>Avg Transaction</th></tr></thead>
-          <tbody>
-            {data.map((c, i) => (
-              <tr key={i}>
-                <td style={{ fontWeight: 600 }}>{c.cashier}</td>
-                <td>{c.transactions}</td>
-                <td>{fmt(c.revenue)}</td>
-                <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(c.profit)}</td>
-                <td>{fmt(c.avg_transaction)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '600px' }}>
+            <thead><tr><th>Cashier</th><th>Transactions</th><th>Revenue</th><th>Profit</th><th>Avg</th></tr></thead>
+            <tbody>
+              {data.map((c, i) => (
+                <tr key={i}>
+                  <td style={{ fontWeight: 600 }}>{c.cashier}</td>
+                  <td>{c.transactions}</td>
+                  <td>{fmt(c.revenue)}</td>
+                  <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(c.profit)}</td>
+                  <td>{fmt(c.avg_transaction)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
     if (reportType === 'keg') {
       return (
-        <table>
-          <thead><tr><th>Keg ID</th><th>Product</th><th>Status</th><th>Revenue</th><th>Profit</th></tr></thead>
-          <tbody>
-            {data.map(k => (
-              <tr key={k.id}>
-                <td style={{ fontFamily: 'monospace' }}>{k.keg_id}</td>
-                <td>{k.product_name}</td>
-                <td><span className={`badge badge-${k.status === 'open' ? 'success' : 'warning'}`}>{k.status}</span></td>
-                <td style={{ fontWeight: 600 }}>{fmt(k.total_revenue)}</td>
-                <td style={{ color: '#27ae60', fontWeight: 600 }}>{k.status === 'closed' ? fmt(k.profit) : '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '600px' }}>
+            <thead><tr><th>Keg ID</th><th>Product</th><th>Status</th><th>Revenue</th><th>Profit</th></tr></thead>
+            <tbody>
+              {data.map(k => (
+                <tr key={k.id}>
+                  <td style={{ fontFamily: 'monospace' }}>{k.keg_id}</td>
+                  <td>{k.product_name}</td>
+                  <td><span className={`badge badge-${k.status === 'open' ? 'success' : 'warning'}`}>{k.status}</span></td>
+                  <td style={{ fontWeight: 600 }}>{fmt(k.total_revenue)}</td>
+                  <td style={{ color: '#27ae60', fontWeight: 600 }}>{k.status === 'closed' ? fmt(k.profit) : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
-    // Generic table
     const keys = Object.keys(data[0]);
     return (
-      <table>
-        <thead><tr>{keys.map(k => <th key={k}>{k}</th>)}</tr></thead>
-        <tbody>
-          {data.map((row, i) => (
-            <tr key={i}>{keys.map(k => <td key={k}>{typeof row[k] === 'number' ? parseFloat(row[k]).toLocaleString() : row[k]}</td>)}</tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ minWidth: `${keys.length * 120}px` }}>
+          <thead><tr>{keys.map(k => <th key={k}>{k}</th>)}</tr></thead>
+          <tbody>
+            {data.map((row, i) => (
+              <tr key={i}>{keys.map(k => <td key={k}>{typeof row[k] === 'number' ? parseFloat(row[k]).toLocaleString() : row[k]}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   };
 
@@ -210,39 +216,39 @@ export default function ReportsPage() {
         <p>View and export business reports</p>
       </div>
 
-      <div className="tabs" style={{ flexWrap: 'wrap' }}>
+      <div className="tabs" style={{ flexWrap: 'nowrap', overflowX: 'auto' }}>
         {reportTypes.map(r => (
           <button key={r.id} className={`tab ${reportType === r.id ? 'active' : ''}`} onClick={() => setReportType(r.id)}>{r.label}</button>
         ))}
       </div>
 
-      <div className="filters-bar" style={{ marginBottom: '16px' }}>
+      <div className="filters-bar">
         {['monthly'].includes(reportType) && (
           <>
-            <select value={month} onChange={e => setMonth(e.target.value)}>
+            <select value={month} onChange={e => setMonth(e.target.value)} style={{ flex: '1 1 120px' }}>
               {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{new Date(0, i).toLocaleString('en', { month: 'long' })}</option>)}
             </select>
-            <select value={year} onChange={e => setYear(e.target.value)}>
+            <select value={year} onChange={e => setYear(e.target.value)} style={{ flex: '1 1 100px' }}>
               {[...Array(5)].map((_, i) => <option key={i} value={new Date().getFullYear() - i}>{new Date().getFullYear() - i}</option>)}
             </select>
           </>
         )}
         {reportType === 'yearly' && (
-          <select value={year} onChange={e => setYear(e.target.value)}>
+          <select value={year} onChange={e => setYear(e.target.value)} style={{ flex: '1 1 100px' }}>
             {[...Array(5)].map((_, i) => <option key={i} value={new Date().getFullYear() - i}>{new Date().getFullYear() - i}</option>)}
           </select>
         )}
         {!['monthly', 'yearly', 'cashier'].includes(reportType) && (
           <>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ flex: '1 1 130px' }} />
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ flex: '1 1 130px' }} />
             <button className="btn btn-sm btn-primary" onClick={loadReport}>Filter</button>
           </>
         )}
-        <button className="btn btn-sm btn-outline" onClick={exportCSV}>📥 Export CSV</button>
+        <button className="btn btn-sm btn-outline" onClick={exportCSV}>📥 CSV</button>
       </div>
 
-      <div className="table-container" style={{ overflow: 'auto' }}>
+      <div className="table-container">
         {renderTable()}
       </div>
     </div>

@@ -75,9 +75,9 @@ export default function ExpensesPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header page-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1>💸 Expenses Management</h1>
+          <h1>💸 Expenses</h1>
           <p>Track and manage business operating expenses</p>
         </div>
         <button className="btn btn-primary" onClick={() => { setEditing(null); setForm({ category_id: '', description: '', amount: '', payment_method: 'cash', person_vendor: '', notes: '', date: new Date().toISOString().split('T')[0] }); setShowModal(true); }}>+ Add Expense</button>
@@ -95,51 +95,53 @@ export default function ExpensesPage() {
       </div>
 
       <div className="filters-bar">
-        <select value={filters.period} onChange={e => setFilters({...filters, period: e.target.value})}>
+        <select value={filters.period} onChange={e => setFilters({...filters, period: e.target.value})} style={{ flex: '1 1 120px' }}>
           <option value="">All Time</option>
           <option value="today">Today</option>
           <option value="week">This Week</option>
           <option value="month">This Month</option>
           <option value="year">This Year</option>
         </select>
-        <select value={filters.category} onChange={e => setFilters({...filters, category: e.target.value})}>
+        <select value={filters.category} onChange={e => setFilters({...filters, category: e.target.value})} style={{ flex: '1 1 140px' }}>
           <option value="">All Categories</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
 
       <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Expense ID</th>
-              <th>Date</th>
-              <th>Category</th>
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Payment</th>
-              <th>Person/Vendor</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {expenses.map(exp => (
-              <tr key={exp.id}>
-                <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{exp.expense_id}</td>
-                <td>{new Date(exp.date).toLocaleDateString()}</td>
-                <td><span className="badge badge-info">{exp.category_name}</span></td>
-                <td>{exp.description}</td>
-                <td style={{ fontWeight: 600, color: '#e74c3c' }}>{fmt(exp.amount)}</td>
-                <td>{exp.payment_method}</td>
-                <td>{exp.person_vendor}</td>
-                <td>
-                  <button className="btn btn-sm btn-outline" onClick={() => startEdit(exp)} style={{ marginRight: '4px' }}>Edit</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(exp.id)}>Delete</button>
-                </td>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '850px' }}>
+            <thead>
+              <tr>
+                <th>Expense ID</th>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Payment</th>
+                <th>Person/Vendor</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {expenses.map(exp => (
+                <tr key={exp.id}>
+                  <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{exp.expense_id}</td>
+                  <td>{new Date(exp.date).toLocaleDateString()}</td>
+                  <td><span className="badge badge-info">{exp.category_name}</span></td>
+                  <td>{exp.description}</td>
+                  <td style={{ fontWeight: 600, color: '#e74c3c' }}>{fmt(exp.amount)}</td>
+                  <td>{exp.payment_method}</td>
+                  <td>{exp.person_vendor}</td>
+                  <td>
+                    <button className="btn btn-sm btn-outline" onClick={() => startEdit(exp)} style={{ marginRight: '4px' }}>Edit</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(exp.id)}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (
@@ -171,13 +173,15 @@ export default function ExpensesPage() {
                   <option value="other">Other</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>Person/Vendor</label>
-                <input type="text" value={form.person_vendor} onChange={e => setForm({...form, person_vendor: e.target.value})} />
-              </div>
-              <div className="form-group">
-                <label>Date</label>
-                <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="form-grid-2">
+                <div className="form-group">
+                  <label>Person/Vendor</label>
+                  <input type="text" value={form.person_vendor} onChange={e => setForm({...form, person_vendor: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Date</label>
+                  <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
+                </div>
               </div>
               <div className="form-group">
                 <label>Notes</label>

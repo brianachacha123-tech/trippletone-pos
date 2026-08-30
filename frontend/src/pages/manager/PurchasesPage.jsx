@@ -47,45 +47,47 @@ export default function PurchasesPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header page-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1>📦 Purchase Management</h1>
+          <h1>📦 Purchases</h1>
           <p>Record and track stock purchases from suppliers</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Record Purchase</button>
       </div>
 
       <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Purchase ID</th>
-              <th>Date</th>
-              <th>Supplier</th>
-              <th>Product</th>
-              <th>Quantity</th>
-              <th>Buying Price</th>
-              <th>Total Cost</th>
-              <th>Invoice</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {purchases.map(p => (
-              <tr key={p.id}>
-                <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{p.purchase_id}</td>
-                <td>{new Date(p.date).toLocaleDateString()}</td>
-                <td>{p.supplier_name}</td>
-                <td>{p.product_name}</td>
-                <td>{p.quantity}</td>
-                <td>{fmt(p.buying_price)}</td>
-                <td style={{ fontWeight: 600 }}>{fmt(p.total_cost)}</td>
-                <td>{p.invoice_number || '-'}</td>
-                <td><button className="btn btn-sm btn-danger" onClick={() => handleDelete(p.id)}>Delete</button></td>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '900px' }}>
+            <thead>
+              <tr>
+                <th>Purchase ID</th>
+                <th>Date</th>
+                <th>Supplier</th>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Buying Price</th>
+                <th>Total Cost</th>
+                <th>Invoice</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {purchases.map(p => (
+                <tr key={p.id}>
+                  <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{p.purchase_id}</td>
+                  <td>{new Date(p.date).toLocaleDateString()}</td>
+                  <td>{p.supplier_name}</td>
+                  <td>{p.product_name}</td>
+                  <td>{p.quantity}</td>
+                  <td>{fmt(p.buying_price)}</td>
+                  <td style={{ fontWeight: 600 }}>{fmt(p.total_cost)}</td>
+                  <td>{p.invoice_number || '-'}</td>
+                  <td><button className="btn btn-sm btn-danger" onClick={() => handleDelete(p.id)}>Delete</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (
@@ -110,13 +112,15 @@ export default function PurchasesPage() {
                   {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label>Quantity</label>
-                <input type="number" step="0.01" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label>Buying Price (KSh)</label>
-                <input type="number" step="0.01" value={form.buying_price} onChange={e => setForm({...form, buying_price: e.target.value})} required />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="form-grid-2">
+                <div className="form-group">
+                  <label>Quantity</label>
+                  <input type="number" step="0.01" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} required />
+                </div>
+                <div className="form-group">
+                  <label>Buying Price (KSh)</label>
+                  <input type="number" step="0.01" value={form.buying_price} onChange={e => setForm({...form, buying_price: e.target.value})} required />
+                </div>
               </div>
               <div className="form-group">
                 <label>Invoice Number</label>

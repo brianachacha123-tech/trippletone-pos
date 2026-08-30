@@ -34,15 +34,15 @@ export default function SalesPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>💰 Sales Management</h1>
+        <h1>💰 Sales</h1>
         <p>View and manage all sales transactions</p>
       </div>
 
       <div className="filters-bar">
-        <input type="date" value={filters.date_from} onChange={e => setFilters({...filters, date_from: e.target.value})} placeholder="From" />
-        <input type="date" value={filters.date_to} onChange={e => setFilters({...filters, date_to: e.target.value})} placeholder="To" />
-        <select value={filters.payment_method} onChange={e => setFilters({...filters, payment_method: e.target.value})}>
-          <option value="">All Payment Methods</option>
+        <input type="date" value={filters.date_from} onChange={e => setFilters({...filters, date_from: e.target.value})} placeholder="From" style={{ flex: '1 1 140px' }} />
+        <input type="date" value={filters.date_to} onChange={e => setFilters({...filters, date_to: e.target.value})} placeholder="To" style={{ flex: '1 1 140px' }} />
+        <select value={filters.payment_method} onChange={e => setFilters({...filters, payment_method: e.target.value})} style={{ flex: '1 1 130px' }}>
+          <option value="">All Methods</option>
           <option value="cash">Cash</option>
           <option value="mpesa">M-Pesa</option>
           <option value="card">Card</option>
@@ -52,66 +52,70 @@ export default function SalesPage() {
       </div>
 
       <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Sale ID</th>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Cashier</th>
-              <th>Payment</th>
-              <th>Revenue</th>
-              <th>Cost</th>
-              <th>Profit</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sales.map(sale => (
-              <tr key={sale.id}>
-                <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{sale.sale_id}</td>
-                <td>{new Date(sale.date).toLocaleDateString()}</td>
-                <td>{new Date(sale.date).toLocaleTimeString()}</td>
-                <td>{sale.cashier_name}</td>
-                <td><span className={`badge badge-${sale.payment_method === 'cash' ? 'success' : sale.payment_method === 'mpesa' ? 'info' : 'warning'}`}>{sale.payment_method}</span></td>
-                <td style={{ fontWeight: 600 }}>{fmt(sale.total_revenue)}</td>
-                <td>{fmt(sale.total_cost)}</td>
-                <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(sale.total_profit)}</td>
-                <td><button className="btn btn-sm btn-outline" onClick={() => viewSale(sale.id)}>View</button></td>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '900px' }}>
+            <thead>
+              <tr>
+                <th>Sale ID</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Cashier</th>
+                <th>Payment</th>
+                <th>Revenue</th>
+                <th>Cost</th>
+                <th>Profit</th>
+                <th>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sales.map(sale => (
+                <tr key={sale.id}>
+                  <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{sale.sale_id}</td>
+                  <td>{new Date(sale.date).toLocaleDateString()}</td>
+                  <td>{new Date(sale.date).toLocaleTimeString()}</td>
+                  <td>{sale.cashier_name}</td>
+                  <td><span className={`badge badge-${sale.payment_method === 'cash' ? 'success' : sale.payment_method === 'mpesa' ? 'info' : 'warning'}`}>{sale.payment_method}</span></td>
+                  <td style={{ fontWeight: 600 }}>{fmt(sale.total_revenue)}</td>
+                  <td>{fmt(sale.total_cost)}</td>
+                  <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(sale.total_profit)}</td>
+                  <td><button className="btn btn-sm btn-outline" onClick={() => viewSale(sale.id)}>View</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Sale Detail Modal */}
       {selectedSale && (
         <div className="modal-overlay" onClick={() => setSelectedSale(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>Sale: {selectedSale.sale_id}</h2>
-            <p style={{ color: '#666', marginBottom: '12px' }}>
+            <h2 style={{ fontSize: '18px' }}>Sale: {selectedSale.sale_id}</h2>
+            <p style={{ color: '#666', marginBottom: '12px', fontSize: '13px' }}>
               {new Date(selectedSale.date).toLocaleString()} • {selectedSale.cashier_name} • {selectedSale.payment_method}
             </p>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #eee', fontSize: '12px' }}>Product</th>
-                  <th style={{ padding: '8px', textAlign: 'right', borderBottom: '2px solid #eee', fontSize: '12px' }}>Qty</th>
-                  <th style={{ padding: '8px', textAlign: 'right', borderBottom: '2px solid #eee', fontSize: '12px' }}>Price</th>
-                  <th style={{ padding: '8px', textAlign: 'right', borderBottom: '2px solid #eee', fontSize: '12px' }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedSale.items?.map((item, i) => (
-                  <tr key={i}>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>{item.product_name}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{item.quantity}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{fmt(item.unit_price)}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>{fmt(item.total_price)}</td>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px', minWidth: '400px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #eee', fontSize: '12px' }}>Product</th>
+                    <th style={{ padding: '8px', textAlign: 'right', borderBottom: '2px solid #eee', fontSize: '12px' }}>Qty</th>
+                    <th style={{ padding: '8px', textAlign: 'right', borderBottom: '2px solid #eee', fontSize: '12px' }}>Price</th>
+                    <th style={{ padding: '8px', textAlign: 'right', borderBottom: '2px solid #eee', fontSize: '12px' }}>Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {selectedSale.items?.map((item, i) => (
+                    <tr key={i}>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>{item.product_name}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{item.quantity}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{fmt(item.unit_price)}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>{fmt(item.total_price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <div style={{ borderTop: '2px solid #eee', paddingTop: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span>Revenue:</span><strong>{fmt(selectedSale.total_revenue)}</strong></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}><span>Cost:</span><strong>{fmt(selectedSale.total_cost)}</strong></div>

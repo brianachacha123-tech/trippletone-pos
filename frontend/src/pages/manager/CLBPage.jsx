@@ -32,7 +32,7 @@ export default function CLBPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header page-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1>🍸 CLB Management</h1>
           <p>Track CLB fund purchases and sales separately</p>
@@ -43,47 +43,49 @@ export default function CLBPage() {
       {summary && (
         <div className="kpi-grid">
           <div className="kpi-card expense">
-            <div className="label">CLB Purchases</div>
+            <div className="label">Purchases</div>
             <div className="value">{fmt(summary.total_purchases)}</div>
           </div>
           <div className="kpi-card">
-            <div className="label">CLB Sales</div>
+            <div className="label">Sales</div>
             <div className="value">{fmt(summary.total_sales)}</div>
           </div>
           <div className="kpi-card profit">
-            <div className="label">CLB Profit</div>
+            <div className="label">Profit</div>
             <div className="value">{fmt(summary.profit)}</div>
           </div>
           <div className="kpi-card info">
-            <div className="label">Available CLB Money</div>
+            <div className="label">Available</div>
             <div className="value">{fmt(summary.available)}</div>
           </div>
         </div>
       )}
 
       <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Recorded By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map(tx => (
-              <tr key={tx.id}>
-                <td>{new Date(tx.date).toLocaleDateString()}</td>
-                <td><span className={`badge badge-${tx.type === 'sale' ? 'success' : 'warning'}`}>{tx.type}</span></td>
-                <td>{tx.description}</td>
-                <td style={{ fontWeight: 600, color: tx.type === 'sale' ? '#27ae60' : '#e74c3c' }}>{fmt(tx.amount)}</td>
-                <td>{tx.created_by_name}</td>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '600px' }}>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>By</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {transactions.map(tx => (
+                <tr key={tx.id}>
+                  <td>{new Date(tx.date).toLocaleDateString()}</td>
+                  <td><span className={`badge badge-${tx.type === 'sale' ? 'success' : 'warning'}`}>{tx.type}</span></td>
+                  <td>{tx.description}</td>
+                  <td style={{ fontWeight: 600, color: tx.type === 'sale' ? '#27ae60' : '#e74c3c' }}>{fmt(tx.amount)}</td>
+                  <td>{tx.created_by_name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (

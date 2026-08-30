@@ -55,52 +55,54 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header page-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1>🏷️ Products Management</h1>
+          <h1>🏷️ Products</h1>
           <p>Add, edit, and manage your product catalog</p>
         </div>
         <button className="btn btn-primary" onClick={() => { setEditing(null); setForm({ name: '', category_id: '', buying_price: '', selling_price: '', current_stock: '', minimum_stock: '', unit: 'piece', supplier_id: '' }); setShowModal(true); }}>+ Add Product</button>
       </div>
 
       <div className="filters-bar">
-        <input type="text" placeholder="🔍 Search products..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input type="text" placeholder="🔍 Search products..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%' }} />
       </div>
 
       <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Product Name</th>
-              <th>Category</th>
-              <th>Buying Price</th>
-              <th>Selling Price</th>
-              <th>Profit/Unit</th>
-              <th>Stock</th>
-              <th>Min Stock</th>
-              <th>Supplier</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredProducts.map(p => (
-              <tr key={p.id}>
-                <td style={{ fontWeight: 600 }}>{p.name}</td>
-                <td><span className="badge badge-info">{p.category_name || '-'}</span></td>
-                <td>{fmt(p.buying_price)}</td>
-                <td>{fmt(p.selling_price)}</td>
-                <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(parseFloat(p.selling_price) - parseFloat(p.buying_price))}</td>
-                <td>{parseFloat(p.current_stock).toLocaleString()} {p.unit}</td>
-                <td>{parseFloat(p.minimum_stock).toLocaleString()}</td>
-                <td>{p.supplier_name || '-'}</td>
-                <td>
-                  <button className="btn btn-sm btn-outline" onClick={() => startEdit(p)} style={{ marginRight: '4px' }}>Edit</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(p.id)}>Delete</button>
-                </td>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '800px' }}>
+            <thead>
+              <tr>
+                <th>Product Name</th>
+                <th>Category</th>
+                <th>Buying Price</th>
+                <th>Selling Price</th>
+                <th>Profit/Unit</th>
+                <th>Stock</th>
+                <th>Min Stock</th>
+                <th>Supplier</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredProducts.map(p => (
+                <tr key={p.id}>
+                  <td style={{ fontWeight: 600 }}>{p.name}</td>
+                  <td><span className="badge badge-info">{p.category_name || '-'}</span></td>
+                  <td>{fmt(p.buying_price)}</td>
+                  <td>{fmt(p.selling_price)}</td>
+                  <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(parseFloat(p.selling_price) - parseFloat(p.buying_price))}</td>
+                  <td>{parseFloat(p.current_stock).toLocaleString()} {p.unit}</td>
+                  <td>{parseFloat(p.minimum_stock).toLocaleString()}</td>
+                  <td>{p.supplier_name || '-'}</td>
+                  <td>
+                    <button className="btn btn-sm btn-outline" onClick={() => startEdit(p)} style={{ marginRight: '4px' }}>Edit</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(p.id)}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (
@@ -116,15 +118,15 @@ export default function ProductsPage() {
                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="form-grid-2">
                 <div className="form-group"><label>Buying Price (KSh)</label><input type="number" step="0.01" value={form.buying_price} onChange={e => setForm({...form, buying_price: e.target.value})} required /></div>
                 <div className="form-group"><label>Selling Price (KSh)</label><input type="number" step="0.01" value={form.selling_price} onChange={e => setForm({...form, selling_price: e.target.value})} required /></div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="form-grid-2">
                 <div className="form-group"><label>Current Stock</label><input type="number" step="0.01" value={form.current_stock} onChange={e => setForm({...form, current_stock: e.target.value})} required /></div>
                 <div className="form-group"><label>Minimum Stock Level</label><input type="number" step="0.01" value={form.minimum_stock} onChange={e => setForm({...form, minimum_stock: e.target.value})} required /></div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="form-grid-2">
                 <div className="form-group">
                   <label>Unit</label>
                   <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})}>
