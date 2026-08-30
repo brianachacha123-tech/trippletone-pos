@@ -30,6 +30,7 @@ export default function CashierLayout() {
   const [online, setOnline] = useState(navigator.onLine);
   const [pendingSync, setPendingSync] = useState(0);
   const [showSyncPanel, setShowSyncPanel] = useState(false);
+  const [qtyEditor, setQtyEditor] = useState(null); // { product_id, value } - Loyverse-style quantity numpad
 
   // Load products - try API first, fall back to cache
   const loadProducts = useCallback(async () => {
@@ -154,6 +155,38 @@ export default function CashierLayout() {
   };
 
   const clearCart = () => setCart([]);
+
+  // Loyverse-style quantity editing: tap a cart line's quantity to open the numpad
+  const openQtyEditor = (item) => {
+    setQtyEditor({ product_id: item.product_id, value: String(item.quantity) });
+  };
+
+  const closeQtyEditor = () => setQtyEditor(null);
+
+  const confirmQty = () => {
+    if (!qtyEditor) return;
+    const target = qtyEditor.product_id;
+    const qty = parseFloat(qtyEditor.value);
+    const item = cart.find(i => i.product_id === target);
+    setQtyEditor(null);
+    if (!item) return;
+
+    if (isNaN(qty) || qty <= 0) {
+      setMessage('⚠️ Enter a valid quantity');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+    if (qty > item.stock && navigator.onLine) {
+      setMessage(`⚠️ Insufficient stock! Max: ${item.stock}`);
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    setCart(cart.map(i => i.product_id === target ? { ...i, quantity: qty } : i));
+  };
+
+  // Show integers as-is, decimals up to 2 places (e.g. 0.5, 2.25)
+  const formatQty = (q) => (Number.isInteger(q) ? String(q) : String(parseFloat(q.toFixed(2))));
 
   const getCartTotal = () => {
     return cart.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
@@ -360,7 +393,11 @@ export default function CashierLayout() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.product_id, -1); }}
                       style={{ width: '36px', height: '36px', borderRadius: '50%', border: '2px solid #ddd', background: '#fff', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, touchAction: 'manipulation' }}>−</button>
-                    <span style={{ fontWeight: 700, minWidth: '30px', textAlign: 'center', fontSize: '15px' }}>{item.quantity}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openQtyEditor(item); }}
+                      title="Tap to type quantity"
+                      style={{ minWidth: '46px', padding: '6px 10px', border: '2px solid #0f3460', borderRadius: '8px', background: '#eef3fb', color: '#0f3460', cursor: 'pointer', fontWeight: 800, fontSize: '15px', textAlign: 'center', touchAction: 'manipulation' }}
+                    >{formatQty(item.quantity)}</button>
                     <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.product_id, 1); }}
                       style={{ width: '36px', height: '36px', borderRadius: '50%', border: '2px solid #ddd', background: '#fff', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, touchAction: 'manipulation' }}>+</button>
                     <button onClick={(e) => { e.stopPropagation(); removeFromCart(item.product_id); }}
@@ -438,6 +475,90 @@ export default function CashierLayout() {
           </div>
         </div>
       )}
+
+      {/* Loyverse-style quantity numpad overlay */}
+      {qtyEditor && (
+        <QuantityPad
+          item={cart.find(i => i.product_id === qtyEditor.product_id)}
+          value={qtyEditor.value}
+          onChange={(v) => setQtyEditor({ ...qtyEditor, value: v })}
+          onConfirm={confirmQty}
+          onCancel={closeQtyEditor}
+        />
+      )}
+    </div>
+  );
+}
+
+// Touch-optimized numeric keypad for entering item quantities (Loyverse-style)
+function QuantityPad({ item, value, onChange, onConfirm, onCancel }) {
+  const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '⌫'];
+
+  const press = (k) => {
+    if (k === '⌫') {
+      onChange(value.length > 1 ? value.slice(0, -1) : '');
+      return;
+    }
+    if (k === '.') {
+      if (!value.includes('.')) onChange(value === '' ? '0.' : value + '.');
+      return;
+    }
+    // digits only; max 2 decimals; sensible ceiling (999)
+    const [whole, dec] = value.split('.');
+    if (dec !== undefined && dec.length >= 2) return;
+    if (whole && whole.length >= 3 && dec === undefined) return;
+    onChange(value === '0' ? k : value + k);
+  };
+
+  const keyStyle = {
+    padding: '16px 0', fontSize: '24px', fontWeight: 700, border: 'none', borderRadius: '12px',
+    background: '#fff', color: '#1a1a2e', cursor: 'pointer', touchAction: 'manipulation',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.12)', transition: 'all 0.1s',
+  };
+  const totalPreview = (parseFloat(value || '0') || 0) * (item ? item.unit_price : 0);
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(10,10,20,0.55)', zIndex: 1000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none',
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          background: '#f0f2f5', borderRadius: '18px', padding: '18px', width: '300px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.35)', touchAction: 'manipulation',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: '#333' }}>{item ? item.name : ''}</div>
+          <div style={{ fontSize: '13px', color: '#888' }}>Quantity (decimals allowed, e.g. 0.5)</div>
+        </div>
+        <div style={{
+          background: '#fff', borderRadius: '12px', padding: '14px', textAlign: 'center',
+          fontSize: '28px', fontWeight: 800, color: '#0f3460', marginBottom: '14px',
+          border: '2px solid #0f3460', minHeight: '28px',
+        }}>
+          {value || '0'}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '14px' }}>
+          {keys.map(k => (
+            <button key={k} onClick={() => press(k)} style={keyStyle}>{k}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={onCancel}
+            style={{ flex: 1, padding: '14px 0', border: 'none', borderRadius: '12px', background: '#e74c3c', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}
+          >Cancel</button>
+          <button
+            onClick={onConfirm}
+            style={{ flex: 2, padding: '14px 0', border: 'none', borderRadius: '12px', background: '#27ae60', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}
+          >OK · KSh {totalPreview.toLocaleString()}</button>
+        </div>
+      </div>
     </div>
   );
 }
