@@ -259,57 +259,54 @@ export default function CashierLayout() {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f0f2f5', touchAction: 'manipulation' }}>
-      {/* Top Bar */}
-      <div style={{
-        background: '#1a1a2e', color: '#fff', padding: '10px 12px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        flexWrap: 'wrap', gap: '6px', zIndex: 50
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-          <h2 style={{ fontSize: '15px', whiteSpace: 'nowrap' }}>🍺 Trippletone</h2>
-          <span style={{ color: '#e94560', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.full_name}</span>
-        </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Online/Offline indicator */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
-            padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
-            background: online ? 'rgba(39,174,96,0.2)' : 'rgba(231,76,60,0.2)',
-            color: online ? '#27ae60' : '#e74c3c'
-          }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: online ? '#27ae60' : '#e74c3c' }} />
-            {online ? 'Online' : 'Offline'}
-            {pendingSync > 0 && <span style={{ background: '#f39c12', color: '#fff', padding: '1px 5px', borderRadius: '10px', fontSize: '10px' }}>{pendingSync}</span>}
+    <div className="loyverse-pos" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f6fa', touchAction: 'manipulation' }}>
+      {/* Top Bar - Loyverse Style */}
+      <div className="loyverse-topbar">
+        <div className="loyverse-topbar-left">
+          <div className="loyverse-logo">
+            <span className="loyverse-logo-icon">🍺</span>
+            <span className="loyverse-logo-text">Trippletone</span>
           </div>
+          <div className="loyverse-user-badge">
+            <span className="loyverse-user-avatar">👤</span>
+            <span className="loyverse-user-name">{user?.full_name}</span>
+          </div>
+        </div>
+        <div className="loyverse-topbar-right">
+          {/* Online/Offline indicator */}
+          <div className={`loyverse-status-badge ${online ? 'online' : 'offline'}`}>
+            <div className="loyverse-status-dot" />
+            <span>{online ? 'Online' : 'Offline'}</span>
+            {pendingSync > 0 && <span className="loyverse-sync-count">{pendingSync}</span>}
+          </div>
+          
           {pendingSync > 0 && (
-            <button onClick={manualSync} style={{ background: '#f39c12', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}>
+            <button onClick={manualSync} className="loyverse-sync-btn" title="Sync offline sales">
               🔄
             </button>
           )}
-          <button onClick={() => { setSaleHistory(!saleHistory); setShowCart(false); }} style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px' }}>
+          
+          <button onClick={() => { setSaleHistory(!saleHistory); setShowCart(false); }} className="loyverse-history-btn" title="Sales History">
             📋
           </button>
+          
           {/* Mobile cart toggle button */}
           <button
             onClick={() => setShowCart(!showCart)}
-            className="mobile-cart-toggle"
-            style={{ background: cart.length > 0 ? '#e94560' : 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+            className="loyverse-cart-toggle"
           >
-            🛒 {cart.length > 0 ? cart.length : ''}
+            🛒 {cart.length > 0 && <span className="loyverse-cart-badge">{cart.length}</span>}
           </button>
-          <button onClick={handleLogout} style={{ background: '#e94560', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px' }}>
+          
+          <button onClick={handleLogout} className="loyverse-logout-btn" title="Logout">
             🚪
           </button>
         </div>
       </div>
 
+      {/* Message Bar */}
       {message && (
-        <div style={{
-          padding: '10px 16px', fontWeight: 600, textAlign: 'center', fontSize: '14px',
-          background: message.includes('✅') ? '#d4edda' : message.includes('⚠️') ? '#fff3cd' : message.includes('📡') || message.includes('📱') ? '#d1ecf1' : '#f8d7da',
-          color: message.includes('✅') ? '#155724' : message.includes('⚠️') ? '#856404' : message.includes('📡') || message.includes('📱') ? '#0c5460' : '#721c24'
-        }}>
+        <div className={`loyverse-message ${message.includes('✅') ? 'success' : message.includes('⚠️') ? 'warning' : message.includes('📡') || message.includes('📱') ? 'info' : 'error'}`}>
           {message}
         </div>
       )}
@@ -318,177 +315,190 @@ export default function CashierLayout() {
         <SaleHistory userId={user?.id} onBack={() => setSaleHistory(false)} />
       ) : (
         <>
-          {/* Desktop: side-by-side | Mobile: stacked with cart toggle */}
-          <div className="pos-grid cashier-layout" style={{ flex: 1, overflow: 'hidden' }}>
+          {/* Main POS Layout - Loyverse Style */}
+          <div className="loyverse-pos-layout cashier-layout">
             {/* Products Panel */}
-            <div style={{ padding: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', display: showCart ? 'none' : 'flex' }}>
-              {/* Search & Filter */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  placeholder="🔍 Search..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{ flex: '1 1 150px', padding: '12px 14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '16px', outline: 'none', minWidth: '120px' }}
-                />
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  style={{ padding: '12px 14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '16px', outline: 'none', minWidth: '120px', flex: '1 1 100px' }}
+            <div className="loyverse-products-panel" style={{ display: showCart ? 'none' : 'flex' }}>
+              {/* Category Tabs - Loyverse Style */}
+              <div className="loyverse-category-tabs">
+                <button
+                  onClick={() => setSelectedCategory('')}
+                  className={`loyverse-category-tab ${selectedCategory === '' ? 'active' : ''}`}
                 >
-                  <option value="">All</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  All Items
+                </button>
+                {categories.map(category => (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id.toString())}
+                    className={`loyverse-category-tab ${selectedCategory === category.id.toString() ? 'active' : ''}`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
               </div>
 
-              {/* Product Grid - touch-friendly */}
-              <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', alignContent: 'start', WebkitOverflowScrolling: 'touch' }}>
+              {/* Search Bar */}
+              <div className="loyverse-search-container">
+                <span className="loyverse-search-icon">🔍</span>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="loyverse-search-input"
+                />
+              </div>
+
+              {/* Product Grid - Loyverse Style */}
+              <div className="loyverse-product-grid">
                 {filteredProducts.map(product => (
                   <div
                     key={product.id}
                     onClick={() => addToCart(product)}
-                    style={{
-                      background: '#fff',
-                      border: '2px solid #eee',
-                      borderRadius: '12px',
-                      padding: '14px 8px',
-                      cursor: 'pointer',
-                      textAlign: 'center',
-                      transition: 'all 0.15s',
-                      userSelect: 'none',
-                      WebkitTapHighlightColor: 'transparent',
-                      minHeight: '85px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center',
-                    }}
-                    onTouchStart={(e) => { e.currentTarget.style.borderColor = '#0f3460'; e.currentTarget.style.transform = 'scale(0.97)'; }}
-                    onTouchEnd={(e) => { e.currentTarget.style.borderColor = '#eee'; e.currentTarget.style.transform = 'none'; }}
-                    onMouseOver={(e) => { e.currentTarget.style.borderColor = '#0f3460'; e.currentTarget.style.transform = 'scale(0.97)'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.borderColor = '#eee'; e.currentTarget.style.transform = 'none'; }}
+                    className="loyverse-product-card"
+                    onTouchStart={(e) => { e.currentTarget.classList.add('pressed'); }}
+                    onTouchEnd={(e) => { e.currentTarget.classList.remove('pressed'); }}
+                    onMouseOver={(e) => { e.currentTarget.classList.add('hovered'); }}
+                    onMouseOut={(e) => { e.currentTarget.classList.remove('hovered'); }}
                   >
-                    <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '4px', lineHeight: '1.2' }}>{product.name}</div>
-                    <div style={{ fontSize: '15px', color: '#e94560', fontWeight: 700 }}>KSh {parseFloat(product.selling_price).toLocaleString()}</div>
-                    <div style={{ fontSize: '10px', color: '#888', marginTop: '3px' }}>Stock: {parseFloat(product.current_stock).toLocaleString()}</div>
+                    <div className="loyverse-product-emoji">📦</div>
+                    <div className="loyverse-product-name">{product.name}</div>
+                    <div className="loyverse-product-price">KSh {parseFloat(product.selling_price).toLocaleString()}</div>
+                    <div className="loyverse-product-stock">Stock: {parseFloat(product.current_stock).toLocaleString()}</div>
                   </div>
                 ))}
                 {filteredProducts.length === 0 && (
-                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#888' }}>
+                  <div className="loyverse-empty-products">
                     {online ? 'No products found' : 'No cached products - connect to internet to load'}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Cart Panel */}
-            <div className={`cart-panel cashier-cart ${showCart ? 'mobile-visible' : ''}`} style={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid #eee' }}>
-              <div style={{ padding: '14px 16px', borderBottom: '1px solid #eee', fontWeight: 700, fontSize: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>🛒 Cart</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#888', fontSize: '14px' }}>{cart.length} items</span>
-                  {/* Mobile: close cart button */}
+            {/* Cart Panel - Loyverse Style */}
+            <div className={`loyverse-cart-panel cashier-cart ${showCart ? 'mobile-visible' : ''}`}>
+              {/* Cart Header */}
+              <div className="loyverse-cart-header">
+                <div className="loyverse-cart-title">
+                  <span className="loyverse-cart-icon">🛒</span>
+                  <span>Current Order</span>
+                </div>
+                <div className="loyverse-cart-meta">
+                  <span className="loyverse-cart-count">{cart.length} items</span>
                   <button
                     onClick={() => setShowCart(false)}
-                    className="mobile-close-cart"
-                    style={{ display: 'none', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', padding: '4px' }}
-                  >✕</button>
+                    className="loyverse-close-cart"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', WebkitOverflowScrolling: 'touch' }}>
+              {/* Cart Items */}
+              <div className="loyverse-cart-items">
                 {cart.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#aaa' }}>
-                    <div style={{ fontSize: '48px', marginBottom: '8px' }}>🛒</div>
-                    <div style={{ fontSize: '14px' }}>Tap products to add to cart</div>
+                  <div className="loyverse-empty-cart">
+                    <div className="loyverse-empty-cart-icon">🛒</div>
+                    <div className="loyverse-empty-cart-text">Tap products to add to cart</div>
+                    <div className="loyverse-empty-cart-subtext">Items will appear here</div>
                   </div>
                 )}
                 {cart.map(item => (
-                  <div key={item.product_id} style={{ display: 'flex', alignItems: 'center', padding: '10px 4px', borderBottom: '1px solid #f5f5f5', gap: '6px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-                      <div style={{ fontSize: '11px', color: '#888' }}>KSh {item.unit_price.toLocaleString()}</div>
+                  <div key={item.product_id} className="loyverse-cart-item">
+                    <div className="loyverse-cart-item-info">
+                      <div className="loyverse-cart-item-name">{item.name}</div>
+                      <div className="loyverse-cart-item-price">KSh {item.unit_price.toLocaleString()} each</div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.product_id, -1); }}
-                        style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid #ddd', background: '#fff', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, touchAction: 'manipulation' }}>−</button>
+                    <div className="loyverse-cart-item-controls">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.product_id, -1); }}
+                        className="loyverse-qty-btn minus"
+                      >
+                        −
+                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); openQtyEditor(item); }}
+                        className="loyverse-qty-display"
                         title="Tap to type quantity"
-                        style={{ minWidth: '40px', padding: '4px 8px', border: '2px solid #0f3460', borderRadius: '8px', background: '#eef3fb', color: '#0f3460', cursor: 'pointer', fontWeight: 800, fontSize: '14px', textAlign: 'center', touchAction: 'manipulation' }}
-                      >{formatQty(item.quantity)}</button>
-                      <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.product_id, 1); }}
-                        style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid #ddd', background: '#fff', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, touchAction: 'manipulation' }}>+</button>
-                      <button onClick={(e) => { e.stopPropagation(); removeFromCart(item.product_id); }}
-                        style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: '16px', padding: '4px', touchAction: 'manipulation' }}>✕</button>
+                      >
+                        {formatQty(item.quantity)}
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.product_id, 1); }}
+                        className="loyverse-qty-btn plus"
+                      >
+                        +
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); removeFromCart(item.product_id); }}
+                        className="loyverse-remove-btn"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <div style={{ minWidth: '65px', textAlign: 'right', fontWeight: 700, fontSize: '13px' }}>
+                    <div className="loyverse-cart-item-total">
                       KSh {(item.quantity * item.unit_price).toLocaleString()}
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Cart Footer */}
-              <div style={{ padding: '14px 16px', borderTop: '2px solid #eee', background: '#fafafa' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '20px', fontWeight: 700, marginBottom: '12px' }}>
-                  <span>Total:</span>
-                  <span style={{ color: '#0f3460' }}>KSh {getCartTotal().toLocaleString()}</span>
+              {/* Cart Footer - Payment Section */}
+              <div className="loyverse-cart-footer">
+                {/* Subtotal */}
+                <div className="loyverse-subtotal-row">
+                  <span>Subtotal</span>
+                  <span className="loyverse-subtotal-amount">KSh {getCartTotal().toLocaleString()}</span>
                 </div>
 
-                {/* Payment Methods */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '12px' }}>
-                  {[
-                    { key: 'cash', label: '💵 Cash' },
-                    { key: 'mpesa', label: '📱 M-Pesa' },
-                    { key: 'card', label: '💳 Card' },
-                    { key: 'other', label: '🔄 Other' },
-                  ].map(method => (
-                    <button
-                      key={method.key}
-                      onClick={() => setPaymentMethod(method.key)}
-                      style={{
-                        padding: '10px',
-                        border: `2px solid ${paymentMethod === method.key ? '#0f3460' : '#ddd'}`,
-                        borderRadius: '10px',
-                        background: paymentMethod === method.key ? '#0f3460' : '#fff',
-                        color: paymentMethod === method.key ? '#fff' : '#333',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        touchAction: 'manipulation',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {method.label}
-                    </button>
-                  ))}
+                {/* Payment Methods - Loyverse Style */}
+                <div className="loyverse-payment-methods">
+                  <button
+                    onClick={() => setPaymentMethod('cash')}
+                    className={`loyverse-payment-btn ${paymentMethod === 'cash' ? 'active' : ''}`}
+                  >
+                    <span className="loyverse-payment-icon">💵</span>
+                    <span className="loyverse-payment-label">Cash</span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('mpesa')}
+                    className={`loyverse-payment-btn ${paymentMethod === 'mpesa' ? 'active' : ''}`}
+                  >
+                    <span className="loyverse-payment-icon">📱</span>
+                    <span className="loyverse-payment-label">M-Pesa</span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('card')}
+                    className={`loyverse-payment-btn ${paymentMethod === 'card' ? 'active' : ''}`}
+                  >
+                    <span className="loyverse-payment-icon">💳</span>
+                    <span className="loyverse-payment-label">Card</span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('other')}
+                    className={`loyverse-payment-btn ${paymentMethod === 'other' ? 'active' : ''}`}
+                  >
+                    <span className="loyverse-payment-icon">🔄</span>
+                    <span className="loyverse-payment-label">Other</span>
+                  </button>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={clearCart}
-                    style={{ flex: 1, padding: '12px', border: '2px solid #ddd', borderRadius: '10px', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600, touchAction: 'manipulation' }}>
+                {/* Action Buttons */}
+                <div className="loyverse-action-buttons">
+                  <button 
+                    onClick={clearCart} 
+                    className="loyverse-clear-btn"
+                    disabled={cart.length === 0}
+                  >
                     Clear
                   </button>
                   <button
                     onClick={submitSale}
                     disabled={loading || cart.length === 0}
-                    style={{
-                      flex: 2,
-                      padding: '12px',
-                      border: 'none',
-                      borderRadius: '10px',
-                      background: cart.length === 0 ? '#ccc' : '#27ae60',
-                      color: '#fff',
-                      cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      touchAction: 'manipulation',
-                      transition: 'all 0.15s',
-                    }}
+                    className="loyverse-charge-btn"
                   >
-                    {loading ? 'Processing...' : `Pay KSh ${getCartTotal().toLocaleString()}`}
+                    {loading ? 'Processing...' : `Charge KSh ${getCartTotal().toLocaleString()}`}
                   </button>
                 </div>
               </div>
@@ -508,40 +518,794 @@ export default function CashierLayout() {
         />
       )}
 
-      {/* Mobile POS styles */}
+      {/* Loyverse POS Styles */}
       <style>{`
-        .mobile-cart-toggle { display: none; }
-        .mobile-close-cart { display: none !important; }
-
-        @media (max-width: 480px) {
-          .mobile-cart-toggle { display: inline-flex; }
-
-          .cashier-layout {
-            grid-template-columns: 1fr !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-
-          .cashier-layout > div:first-child {
-            display: ${showCart ? 'none' : 'flex'} !important;
-          }
-
-          .cashier-cart {
-            display: ${showCart ? 'flex' : 'none'} !important;
-            position: fixed !important;
-            inset: 0 !important;
-            top: 0 !important;
-            z-index: 300 !important;
-            border-radius: 0 !important;
-            background: #fff !important;
-          }
-
-          .mobile-close-cart { display: block !important; }
+        /* Loyverse POS Styles */
+        .loyverse-pos {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
 
-        @media (max-width: 600px) and (min-width: 481px) {
-          .cashier-layout {
-            grid-template-columns: 1fr !important;
+        /* Top Bar */
+        .loyverse-topbar {
+          background: #1e2a3a;
+          color: #fff;
+          padding: 0 16px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          height: 56px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+          z-index: 50;
+        }
+
+        .loyverse-topbar-left {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+        }
+
+        .loyverse-logo {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .loyverse-logo-icon {
+          font-size: 24px;
+        }
+
+        .loyverse-logo-text {
+          font-size: 18px;
+          font-weight: 700;
+          letter-spacing: -0.5px;
+        }
+
+        .loyverse-user-badge {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(255,255,255,0.1);
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 13px;
+        }
+
+        .loyverse-user-avatar {
+          font-size: 16px;
+        }
+
+        .loyverse-user-name {
+          font-weight: 500;
+        }
+
+        .loyverse-topbar-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .loyverse-status-badge {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .loyverse-status-badge.online {
+          background: rgba(39, 174, 96, 0.2);
+          color: #27ae60;
+        }
+
+        .loyverse-status-badge.offline {
+          background: rgba(231, 76, 60, 0.2);
+          color: #e74c3c;
+        }
+
+        .loyverse-status-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: currentColor;
+        }
+
+        .loyverse-sync-count {
+          background: #f39c12;
+          color: #fff;
+          padding: 2px 6px;
+          border-radius: 10px;
+          font-size: 10px;
+          margin-left: 4px;
+        }
+
+        .loyverse-sync-btn,
+        .loyverse-history-btn,
+        .loyverse-cart-toggle,
+        .loyverse-logout-btn {
+          background: rgba(255,255,255,0.1);
+          color: #fff;
+          border: none;
+          padding: 8px 12px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: all 0.2s;
+          position: relative;
+        }
+
+        .loyverse-sync-btn:hover,
+        .loyverse-history-btn:hover,
+        .loyverse-cart-toggle:hover,
+        .loyverse-logout-btn:hover {
+          background: rgba(255,255,255,0.2);
+        }
+
+        .loyverse-logout-btn {
+          background: rgba(231, 76, 60, 0.3);
+        }
+
+        .loyverse-logout-btn:hover {
+          background: rgba(231, 76, 60, 0.5);
+        }
+
+        .loyverse-cart-badge {
+          position: absolute;
+          top: -4px;
+          right: -4px;
+          background: #e74c3c;
+          color: #fff;
+          font-size: 10px;
+          font-weight: 700;
+          padding: 2px 6px;
+          border-radius: 10px;
+          min-width: 18px;
+          text-align: center;
+        }
+
+        /* Message Bar */
+        .loyverse-message {
+          padding: 10px 16px;
+          font-weight: 600;
+          text-align: center;
+          font-size: 14px;
+          animation: slideDown 0.3s ease;
+        }
+
+        .loyverse-message.success {
+          background: #d4edda;
+          color: #155724;
+        }
+
+        .loyverse-message.warning {
+          background: #fff3cd;
+          color: #856404;
+        }
+
+        .loyverse-message.info {
+          background: #d1ecf1;
+          color: #0c5460;
+        }
+
+        .loyverse-message.error {
+          background: #f8d7da;
+          color: #721c24;
+        }
+
+        @keyframes slideDown {
+          from { transform: translateY(-100%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Main POS Layout */
+        .loyverse-pos-layout {
+          flex: 1;
+          display: grid;
+          grid-template-columns: 1fr 380px;
+          gap: 0;
+          overflow: hidden;
+        }
+
+        /* Products Panel */
+        .loyverse-products-panel {
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          background: #f5f6fa;
+        }
+
+        /* Category Tabs - Loyverse Style */
+        .loyverse-category-tabs {
+          display: flex;
+          gap: 8px;
+          padding: 12px 16px;
+          overflow-x: auto;
+          background: #fff;
+          border-bottom: 1px solid #e8e8e8;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .loyverse-category-tab {
+          padding: 10px 20px;
+          border: none;
+          background: #f0f2f5;
+          border-radius: 25px;
+          font-size: 14px;
+          font-weight: 600;
+          color: #666;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .loyverse-category-tab:hover {
+          background: #e8e8e8;
+        }
+
+        .loyverse-category-tab.active {
+          background: #1e2a3a;
+          color: #fff;
+        }
+
+        /* Search Bar */
+        .loyverse-search-container {
+          position: relative;
+          padding: 12px 16px;
+          background: #fff;
+          border-bottom: 1px solid #e8e8e8;
+        }
+
+        .loyverse-search-icon {
+          position: absolute;
+          left: 28px;
+          top: 50%;
+          transform: translateY(-50%);
+          font-size: 16px;
+          color: #999;
+        }
+
+        .loyverse-search-input {
+          width: 100%;
+          padding: 14px 14px 14px 44px;
+          border: 2px solid #e8e8e8;
+          border-radius: 12px;
+          font-size: 16px;
+          outline: none;
+          transition: border-color 0.2s;
+          background: #f8f9fa;
+        }
+
+        .loyverse-search-input:focus {
+          border-color: #1e2a3a;
+          background: #fff;
+        }
+
+        .loyverse-search-input::placeholder {
+          color: #999;
+        }
+
+        /* Product Grid - Loyverse Style */
+        .loyverse-product-grid {
+          flex: 1;
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+          gap: 12px;
+          padding: 16px;
+          overflow-y: auto;
+          align-content: start;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .loyverse-product-card {
+          background: #fff;
+          border: 2px solid #e8e8e8;
+          border-radius: 16px;
+          padding: 16px 12px;
+          cursor: pointer;
+          text-align: center;
+          transition: all 0.15s ease;
+          user-select: none;
+          -webkit-tap-highlight-color: transparent;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .loyverse-product-card.pressed,
+        .loyverse-product-card:active {
+          transform: scale(0.96);
+          border-color: #1e2a3a;
+          box-shadow: 0 4px 12px rgba(30, 42, 58, 0.2);
+        }
+
+        .loyverse-product-card.hovered {
+          border-color: #1e2a3a;
+          box-shadow: 0 4px 12px rgba(30, 42, 58, 0.15);
+        }
+
+        .loyverse-product-emoji {
+          font-size: 36px;
+          margin-bottom: 4px;
+        }
+
+        .loyverse-product-name {
+          font-size: 13px;
+          font-weight: 600;
+          color: #333;
+          line-height: 1.3;
+          max-height: 34px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+        }
+
+        .loyverse-product-price {
+          font-size: 16px;
+          font-weight: 700;
+          color: #1e2a3a;
+        }
+
+        .loyverse-product-stock {
+          font-size: 11px;
+          color: #999;
+        }
+
+        .loyverse-empty-products {
+          grid-column: 1 / -1;
+          text-align: center;
+          padding: 60px 20px;
+          color: #999;
+          font-size: 15px;
+        }
+
+        /* Cart Panel - Loyverse Style */
+        .loyverse-cart-panel {
+          background: #fff;
+          display: flex;
+          flex-direction: column;
+          border-left: 1px solid #e8e8e8;
+        }
+
+        .loyverse-cart-header {
+          padding: 16px 20px;
+          border-bottom: 1px solid #e8e8e8;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: #fafafa;
+        }
+
+        .loyverse-cart-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 18px;
+          font-weight: 700;
+          color: #1e2a3a;
+        }
+
+        .loyverse-cart-icon {
+          font-size: 20px;
+        }
+
+        .loyverse-cart-meta {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .loyverse-cart-count {
+          font-size: 14px;
+          color: #666;
+          background: #f0f2f5;
+          padding: 4px 12px;
+          border-radius: 15px;
+        }
+
+        .loyverse-close-cart {
+          display: none;
+          background: none;
+          border: none;
+          font-size: 20px;
+          cursor: pointer;
+          padding: 4px 8px;
+          color: #666;
+        }
+
+        /* Cart Items */
+        .loyverse-cart-items {
+          flex: 1;
+          overflow-y: auto;
+          padding: 12px 16px;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .loyverse-empty-cart {
+          text-align: center;
+          padding: 60px 20px;
+        }
+
+        .loyverse-empty-cart-icon {
+          font-size: 64px;
+          margin-bottom: 16px;
+          opacity: 0.3;
+        }
+
+        .loyverse-empty-cart-text {
+          font-size: 16px;
+          font-weight: 600;
+          color: #666;
+          margin-bottom: 8px;
+        }
+
+        .loyverse-empty-cart-subtext {
+          font-size: 14px;
+          color: #999;
+        }
+
+        .loyverse-cart-item {
+          padding: 14px 0;
+          border-bottom: 1px solid #f0f2f5;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: flex-start;
+          gap: 10px;
+        }
+
+        .loyverse-cart-item:last-child {
+          border-bottom: none;
+        }
+
+        .loyverse-cart-item-info {
+          flex: 1;
+          min-width: 120px;
+        }
+
+        .loyverse-cart-item-name {
+          font-size: 14px;
+          font-weight: 600;
+          color: #333;
+          margin-bottom: 4px;
+        }
+
+        .loyverse-cart-item-price {
+          font-size: 12px;
+          color: #999;
+        }
+
+        .loyverse-cart-item-controls {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .loyverse-qty-btn {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          border: 2px solid #e8e8e8;
+          background: #fff;
+          cursor: pointer;
+          font-size: 18px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+          touch-action: manipulation;
+        }
+
+        .loyverse-qty-btn.minus {
+          color: #e74c3c;
+        }
+
+        .loyverse-qty-btn.plus {
+          color: #27ae60;
+        }
+
+        .loyverse-qty-btn:hover {
+          background: #f0f2f5;
+        }
+
+        .loyverse-qty-display {
+          min-width: 50px;
+          padding: 8px 12px;
+          border: 2px solid #1e2a3a;
+          border-radius: 10px;
+          background: #f8f9fa;
+          color: #1e2a3a;
+          cursor: pointer;
+          font-weight: 700;
+          font-size: 16px;
+          text-align: center;
+          touch-action: manipulation;
+          transition: all 0.15s;
+        }
+
+        .loyverse-qty-display:hover {
+          background: #e8e8e8;
+        }
+
+        .loyverse-remove-btn {
+          background: none;
+          border: none;
+          color: #ccc;
+          cursor: pointer;
+          font-size: 16px;
+          padding: 8px;
+          transition: color 0.15s;
+          touch-action: manipulation;
+        }
+
+        .loyverse-remove-btn:hover {
+          color: #e74c3c;
+        }
+
+        .loyverse-cart-item-total {
+          width: 100%;
+          text-align: right;
+          font-size: 15px;
+          font-weight: 700;
+          color: #1e2a3a;
+          padding-top: 4px;
+        }
+
+        /* Cart Footer - Payment Section */
+        .loyverse-cart-footer {
+          padding: 16px 20px;
+          border-top: 2px solid #e8e8e8;
+          background: #fafafa;
+        }
+
+        .loyverse-subtotal-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid #e8e8e8;
+        }
+
+        .loyverse-subtotal-row span:first-child {
+          font-size: 14px;
+          color: #666;
+        }
+
+        .loyverse-subtotal-amount {
+          font-size: 24px;
+          font-weight: 700;
+          color: #1e2a3a;
+        }
+
+        /* Payment Methods - Loyverse Style */
+        .loyverse-payment-methods {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+
+        .loyverse-payment-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          padding: 12px 8px;
+          border: 2px solid #e8e8e8;
+          border-radius: 12px;
+          background: #fff;
+          cursor: pointer;
+          transition: all 0.2s;
+          touch-action: manipulation;
+        }
+
+        .loyverse-payment-btn:hover {
+          border-color: #1e2a3a;
+        }
+
+        .loyverse-payment-btn.active {
+          border-color: #1e2a3a;
+          background: #1e2a3a;
+          color: #fff;
+        }
+
+        .loyverse-payment-icon {
+          font-size: 20px;
+        }
+
+        .loyverse-payment-label {
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        /* Action Buttons */
+        .loyverse-action-buttons {
+          display: flex;
+          gap: 10px;
+        }
+
+        .loyverse-clear-btn {
+          flex: 1;
+          padding: 14px;
+          border: 2px solid #e8e8e8;
+          border-radius: 12px;
+          background: #fff;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          color: #666;
+          transition: all 0.2s;
+          touch-action: manipulation;
+        }
+
+        .loyverse-clear-btn:hover:not(:disabled) {
+          border-color: #e74c3c;
+          color: #e74c3c;
+        }
+
+        .loyverse-clear-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .loyverse-charge-btn {
+          flex: 2;
+          padding: 14px 20px;
+          border: none;
+          border-radius: 12px;
+          background: #27ae60;
+          color: #fff;
+          cursor: pointer;
+          font-size: 16px;
+          font-weight: 700;
+          transition: all 0.2s;
+          touch-action: manipulation;
+        }
+
+        .loyverse-charge-btn:hover:not(:disabled) {
+          background: #219a52;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+        }
+
+        .loyverse-charge-btn:disabled {
+          background: #ccc;
+          cursor: not-allowed;
+        }
+
+        /* Mobile Styles */
+        .mobile-cart-toggle { display: none; }
+        .loyverse-close-cart { display: none !important; }
+
+        @media (max-width: 768px) {
+          .loyverse-topbar-left {
+            gap: 12px;
+          }
+
+          .loyverse-user-badge {
+            display: none;
+          }
+
+          .loyverse-logo-text {
+            font-size: 16px;
+          }
+
+          .loyverse-status-badge {
+            display: none;
+          }
+
+          .loyverse-category-tabs {
+            padding: 10px 12px;
+          }
+
+          .loyverse-category-tab {
+            padding: 8px 16px;
+            font-size: 13px;
+          }
+
+          .loyverse-search-container {
+            padding: 10px 12px;
+          }
+
+          .loyverse-product-grid {
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 10px;
+            padding: 12px;
+          }
+
+          .loyverse-product-card {
+            padding: 12px 8px;
+          }
+
+          .loyverse-product-emoji {
+            font-size: 28px;
+          }
+
+          .loyverse-product-name {
+            font-size: 12px;
+          }
+
+          .loyverse-product-price {
+            font-size: 14px;
+          }
+
+          .loyverse-pos-layout {
+            grid-template-columns: 1fr;
+          }
+
+          .mobile-cart-toggle {
+            display: flex;
+          }
+
+          .loyverse-cart-panel {
+            display: none;
+            position: fixed;
+            inset: 0;
+            top: 56px;
+            z-index: 300;
+            border-radius: 0;
+            border-left: none;
+          }
+
+          .loyverse-cart-panel.mobile-visible {
+            display: flex;
+          }
+
+          .loyverse-close-cart {
+            display: block !important;
+          }
+
+          .loyverse-payment-methods {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (max-width: 480px) {
+          .loyverse-topbar {
+            padding: 0 12px;
+          }
+
+          .loyverse-logo-icon {
+            font-size: 20px;
+          }
+
+          .loyverse-logo-text {
+            font-size: 15px;
+          }
+
+          .loyverse-product-grid {
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 8px;
+            padding: 10px;
+          }
+
+          .loyverse-product-card {
+            padding: 10px 6px;
+          }
+
+          .loyverse-product-emoji {
+            font-size: 24px;
+          }
+
+          .loyverse-product-name {
+            font-size: 11px;
+          }
+
+          .loyverse-product-price {
+            font-size: 13px;
+          }
+
+          .loyverse-cart-footer {
+            padding: 12px 16px;
+          }
+
+          .loyverse-subtotal-amount {
+            font-size: 20px;
           }
         }
       `}</style>
@@ -569,53 +1333,117 @@ function QuantityPad({ item, value, onChange, onConfirm, onCancel }) {
   };
 
   const keyStyle = {
-    padding: '16px 0', fontSize: '24px', fontWeight: 700, border: 'none', borderRadius: '12px',
-    background: '#fff', color: '#1a1a2e', cursor: 'pointer', touchAction: 'manipulation',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.12)', transition: 'all 0.1s',
+    padding: '18px 0',
+    fontSize: '26px',
+    fontWeight: 700,
+    border: 'none',
+    borderRadius: '14px',
+    background: '#fff',
+    color: '#1e2a3a',
+    cursor: 'pointer',
+    touchAction: 'manipulation',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    transition: 'all 0.1s',
   };
+
   const totalPreview = (parseFloat(value || '0') || 0) * (item ? item.unit_price : 0);
 
   return (
     <div
+      className="loyverse-numpad-overlay"
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(10,10,20,0.55)', zIndex: 1000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none',
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(30, 42, 58, 0.6)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        touchAction: 'none',
         padding: '16px',
       }}
       onClick={onCancel}
     >
       <div
+        className="loyverse-numpad"
         style={{
-          background: '#f0f2f5', borderRadius: '18px', padding: '18px', width: '300px', maxWidth: '100%',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.35)', touchAction: 'manipulation',
+          background: '#f5f6fa',
+          borderRadius: '20px',
+          padding: '20px',
+          width: '320px',
+          maxWidth: '100%',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.3)',
+          touchAction: 'manipulation',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: '#333' }}>{item ? item.name : ''}</div>
-          <div style={{ fontSize: '13px', color: '#888' }}>Quantity (decimals allowed, e.g. 0.5)</div>
+        <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e2a3a' }}>
+            {item ? item.name : ''}
+          </div>
+          <div style={{ fontSize: '13px', color: '#999', marginTop: '4px' }}>
+            Enter quantity
+          </div>
         </div>
+
         <div style={{
-          background: '#fff', borderRadius: '12px', padding: '14px', textAlign: 'center',
-          fontSize: '28px', fontWeight: 800, color: '#0f3460', marginBottom: '14px',
-          border: '2px solid #0f3460', minHeight: '28px',
+          background: '#fff',
+          borderRadius: '14px',
+          padding: '16px',
+          textAlign: 'center',
+          fontSize: '32px',
+          fontWeight: 800,
+          color: '#1e2a3a',
+          marginBottom: '16px',
+          border: '2px solid #1e2a3a',
+          minHeight: '32px',
         }}>
           {value || '0'}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '14px' }}>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
           {keys.map(k => (
-            <button key={k} onClick={() => press(k)} style={keyStyle}>{k}</button>
+            <button key={k} onClick={() => press(k)} style={keyStyle}>
+              {k}
+            </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+
+        <div style={{ display: 'flex', gap: '10px' }}>
           <button
             onClick={onCancel}
-            style={{ flex: 1, padding: '14px 0', border: 'none', borderRadius: '12px', background: '#e74c3c', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}
-          >Cancel</button>
+            style={{
+              flex: 1,
+              padding: '16px 0',
+              border: 'none',
+              borderRadius: '14px',
+              background: '#e74c3c',
+              color: '#fff',
+              fontSize: '16px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+            }}
+          >
+            Cancel
+          </button>
           <button
             onClick={onConfirm}
-            style={{ flex: 2, padding: '14px 0', border: 'none', borderRadius: '12px', background: '#27ae60', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}
-          >OK · KSh {totalPreview.toLocaleString()}</button>
+            style={{
+              flex: 2,
+              padding: '16px 0',
+              border: 'none',
+              borderRadius: '14px',
+              background: '#27ae60',
+              color: '#fff',
+              fontSize: '16px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+            }}
+          >
+            OK · KSh {totalPreview.toLocaleString()}
+          </button>
         </div>
       </div>
     </div>
@@ -643,35 +1471,84 @@ function SaleHistory({ userId, onBack }) {
   };
 
   return (
-    <div style={{ flex: 1, padding: '16px', overflow: 'auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-        <h2 style={{ fontSize: '18px' }}>My Sales History</h2>
-        <button onClick={onBack} style={{ padding: '10px 16px', border: '2px solid #ddd', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>← Back to POS</button>
+    <div style={{ flex: 1, padding: '20px', overflow: 'auto', background: '#f5f6fa' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+        <h2 style={{ fontSize: '22px', color: '#1e2a3a', fontWeight: 700 }}>Sales History</h2>
+        <button 
+          onClick={onBack} 
+          style={{ 
+            padding: '12px 20px', 
+            border: '2px solid #e8e8e8', 
+            borderRadius: '12px', 
+            background: '#fff', 
+            cursor: 'pointer', 
+            fontSize: '14px', 
+            fontWeight: 600,
+            transition: 'all 0.2s'
+          }}
+        >
+          ← Back to POS
+        </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', overflowX: 'auto' }}>
-        <button onClick={() => setTab('online')} style={{ padding: '10px 16px', border: 'none', borderBottom: tab === 'online' ? '3px solid #0f3460' : '3px solid transparent', background: 'none', cursor: 'pointer', fontWeight: 600, color: tab === 'online' ? '#0f3460' : '#888', fontSize: '14px', whiteSpace: 'nowrap' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', overflowX: 'auto' }}>
+        <button 
+          onClick={() => setTab('online')} 
+          style={{ 
+            padding: '12px 24px', 
+            border: 'none', 
+            borderBottom: tab === 'online' ? '3px solid #1e2a3a' : '3px solid transparent', 
+            background: 'none', 
+            cursor: 'pointer', 
+            fontWeight: 600, 
+            color: tab === 'online' ? '#1e2a3a' : '#999', 
+            fontSize: '14px', 
+            whiteSpace: 'nowrap' 
+          }}
+        >
           Online ({sales.length})
         </button>
-        <button onClick={() => setTab('offline')} style={{ padding: '10px 16px', border: 'none', borderBottom: tab === 'offline' ? '3px solid #f39c12' : '3px solid transparent', background: 'none', cursor: 'pointer', fontWeight: 600, color: tab === 'offline' ? '#f39c12' : '#888', fontSize: '14px', whiteSpace: 'nowrap' }}>
+        <button 
+          onClick={() => setTab('offline')} 
+          style={{ 
+            padding: '12px 24px', 
+            border: 'none', 
+            borderBottom: tab === 'offline' ? '3px solid #f39c12' : '3px solid transparent', 
+            background: 'none', 
+            cursor: 'pointer', 
+            fontWeight: 600, 
+            color: tab === 'offline' ? '#f39c12' : '#999', 
+            fontSize: '14px', 
+            whiteSpace: 'nowrap' 
+          }}
+        >
           Offline ({offlineSales.length})
         </button>
       </div>
 
       {tab === 'online' && (
-        <div style={{ background: '#fff', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
               <thead>
-                <tr><th style={{ padding: '12px 16px', textAlign: 'left', background: '#fafafa', fontSize: '13px' }}>Sale ID</th><th style={{ padding: '12px 16px', textAlign: 'left', background: '#fafafa', fontSize: '13px' }}>Date</th><th style={{ padding: '12px 16px', textAlign: 'left', background: '#fafafa', fontSize: '13px' }}>Payment</th><th style={{ padding: '12px 16px', textAlign: 'right', background: '#fafafa', fontSize: '13px' }}>Revenue</th></tr>
+                <tr>
+                  <th style={{ padding: '14px 20px', textAlign: 'left', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>Sale ID</th>
+                  <th style={{ padding: '14px 20px', textAlign: 'left', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>Date</th>
+                  <th style={{ padding: '14px 20px', textAlign: 'left', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>Payment</th>
+                  <th style={{ padding: '14px 20px', textAlign: 'right', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>Revenue</th>
+                </tr>
               </thead>
               <tbody>
                 {sales.map(sale => (
                   <tr key={sale.id}>
-                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '13px' }}>{sale.sale_id}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '13px' }}>{new Date(sale.date).toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ background: '#d1ecf1', color: '#0c5460', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600 }}>{sale.payment_method}</span></td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>KSh {parseFloat(sale.total_revenue).toLocaleString()}</td>
+                    <td style={{ padding: '14px 20px', fontFamily: 'monospace', fontSize: '13px' }}>{sale.sale_id}</td>
+                    <td style={{ padding: '14px 20px', fontSize: '13px' }}>{new Date(sale.date).toLocaleString()}</td>
+                    <td style={{ padding: '14px 20px' }}>
+                      <span style={{ background: '#d1ecf1', color: '#0c5460', padding: '4px 10px', borderRadius: '15px', fontSize: '12px', fontWeight: 600 }}>
+                        {sale.payment_method}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 600 }}>KSh {parseFloat(sale.total_revenue).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -681,22 +1558,45 @@ function SaleHistory({ userId, onBack }) {
       )}
 
       {tab === 'offline' && (
-        <div style={{ background: '#fff', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          {offlineSales.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#888' }}>No offline sales</div>}
+        <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          {offlineSales.length === 0 && (
+            <div style={{ padding: '60px 20px', textAlign: 'center', color: '#999' }}>
+              No offline sales
+            </div>
+          )}
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '550px' }}>
               <thead>
-                <tr><th style={{ padding: '12px 16px', textAlign: 'left', background: '#fafafa', fontSize: '13px' }}>ID</th><th style={{ padding: '12px 16px', textAlign: 'left', background: '#fafafa', fontSize: '13px' }}>Time</th><th style={{ padding: '12px 16px', textAlign: 'left', background: '#fafafa', fontSize: '13px' }}>Payment</th><th style={{ padding: '12px 16px', textAlign: 'right', background: '#fafafa', fontSize: '13px' }}>Total</th><th style={{ padding: '12px 16px', textAlign: 'center', background: '#fafafa', fontSize: '13px' }}>Status</th></tr>
+                <tr>
+                  <th style={{ padding: '14px 20px', textAlign: 'left', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>ID</th>
+                  <th style={{ padding: '14px 20px', textAlign: 'left', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>Time</th>
+                  <th style={{ padding: '14px 20px', textAlign: 'left', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>Payment</th>
+                  <th style={{ padding: '14px 20px', textAlign: 'right', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>Total</th>
+                  <th style={{ padding: '14px 20px', textAlign: 'center', background: '#fafafa', fontSize: '13px', fontWeight: 600, color: '#666' }}>Status</th>
+                </tr>
               </thead>
               <tbody>
                 {offlineSales.map(sale => (
                   <tr key={sale.id}>
-                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px' }}>{sale.offlineId}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '13px' }}>{new Date(sale.timestamp).toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ background: '#d1ecf1', color: '#0c5460', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600 }}>{sale.payment_method}</span></td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>KSh {sale.items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0).toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      <span style={{ background: sale.synced ? '#d4edda' : '#fff3cd', color: sale.synced ? '#155724' : '#856404', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 600 }}>
+                    <td style={{ padding: '14px 20px', fontFamily: 'monospace', fontSize: '12px' }}>{sale.offlineId}</td>
+                    <td style={{ padding: '14px 20px', fontSize: '13px' }}>{new Date(sale.timestamp).toLocaleString()}</td>
+                    <td style={{ padding: '14px 20px' }}>
+                      <span style={{ background: '#d1ecf1', color: '#0c5460', padding: '4px 10px', borderRadius: '15px', fontSize: '12px', fontWeight: 600 }}>
+                        {sale.payment_method}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 600 }}>
+                      KSh {sale.items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0).toLocaleString()}
+                    </td>
+                    <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                      <span style={{ 
+                        background: sale.synced ? '#d4edda' : '#fff3cd', 
+                        color: sale.synced ? '#155724' : '#856404', 
+                        padding: '4px 10px', 
+                        borderRadius: '15px', 
+                        fontSize: '12px', 
+                        fontWeight: 600 
+                      }}>
                         {sale.synced ? 'Synced' : 'Pending'}
                       </span>
                     </td>
