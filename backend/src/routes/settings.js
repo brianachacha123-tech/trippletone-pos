@@ -9,7 +9,15 @@ const { logAudit } = require('../utils/helpers');
 router.get('/', authenticate, authorize('manager'), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM settings ORDER BY id LIMIT 1');
-    res.json(result.rows[0] || {});
+    res.json(result.rows[0] || {
+      business_name: 'Trippletone Bar',
+      business_phone: '',
+      business_location: '',
+      currency: 'KSh',
+      tax_rate: 0,
+      week_start_day: 1,
+      keg_profit_limit: 5000
+    });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -18,15 +26,59 @@ router.get('/', authenticate, authorize('manager'), async (req, res) => {
 // Update settings
 router.put('/', authenticate, authorize('manager'), async (req, res) => {
   try {
-    const { business_name, business_phone, business_location, currency, tax_rate } = req.body;
-    const result = await pool.query(
-      `UPDATE settings SET business_name=$1, business_phone=$2, business_location=$3, currency=$4, tax_rate=$5, updated_at=NOW()
-       WHERE id = (SELECT id FROM settings LIMIT 1) RETURNING *`,
-      [business_name, business_phone, business_location, currency || 'KSh', tax_rate || 0]
-    );
-    await logAudit(req.user.id, 'Settings updated');
+    const { 
+      business_name, 
+      business_phone, 
+      business_location, 
+      currency, 
+      tax_rate,
+      week_start_day,
+      keg_profit_limit
+    } = req.body;
+    
+    // Check if settings exist
+    const existing = await pool.query('SELECT id FROM settings LIMIT 1');
+    
+    let result;
+    if (existing.rows.length > 0) {
+      // Update existing settings
+      result = await pool.query(
+        `UPDATE settings SET 
+          business_name=$1, business_phone=$2, business_location=$3, currency=$4, tax_rate=$5,
+          week_start_day=$6, keg_profit_limit=$7, updated_at=NOW()
+         WHERE id = $8 RETURNING *`,
+        [
+          business_name, 
+          business_phone, 
+          business_location, 
+          currency || 'KSh', 
+          tax_rate || 0,
+          week_start_day !== undefined ? week_start_day : 1,
+          keg_profit_limit !== undefined ? keg_profit_limit : 5000,
+          existing.rows[0].id
+        ]
+      );
+    } else {
+      // Insert new settings
+      result = await pool.query(
+        `INSERT INTO settings (business_name, business_phone, business_location, currency, tax_rate, week_start_day, keg_profit_limit)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [
+          business_name, 
+          business_phone, 
+          business_location, 
+          currency || 'KSh', 
+          tax_rate || 0,
+          week_start_day !== undefined ? week_start_day : 1,
+          keg_profit_limit !== undefined ? keg_profit_limit : 5000
+        ]
+      );
+    }
+    
+    await logAudit(req.user.id, 'Settings updated', `Week start day: ${week_start_day}, Keg profit limit: ${keg_profit_limit}`);
     res.json(result.rows[0]);
   } catch (err) {
+    console.error('Settings update error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

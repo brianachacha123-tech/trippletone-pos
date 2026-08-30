@@ -51,6 +51,58 @@ router.get('/', authenticate, authorize('manager'), async (req, res) => {
   }
 });
 
+// Get expenses grouped by day
+router.get('/daily', authenticate, authorize('manager'), async (req, res) => {
+  try {
+    const { date_from, date_to } = req.query;
+    let query = `
+      SELECT 
+        e.id, e.expense_id, e.description, e.amount, e.payment_method, 
+        e.person_vendor, e.notes, e.date, e.created_by,
+        ec.name as category_name,
+        u.full_name as created_by_name,
+        DATE_TRUNC('day', e.date) as day
+      FROM expenses e
+      LEFT JOIN expense_categories ec ON e.category_id = ec.id
+      LEFT JOIN users u ON e.created_by = u.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (date_from) {
+      query += ` AND e.date >= $${paramIndex}`;
+      params.push(date_from);
+      paramIndex++;
+    }
+    if (date_to) {
+      query += ` AND e.date <= $${paramIndex}::date + INTERVAL '1 day'`;
+      params.push(date_to);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY e.date DESC';
+    const result = await pool.query(query, params);
+    
+    // Group by day
+    const grouped = {};
+    result.rows.forEach(row => {
+      const day = row.day.toISOString().split('T')[0];
+      if (!grouped[day]) {
+        grouped[day] = { day, expenses: [], total: 0 };
+      }
+      grouped[day].expenses.push(row);
+      grouped[day].total += parseFloat(row.amount);
+    });
+
+    const dailyData = Object.values(grouped);
+    res.json(dailyData);
+  } catch (err) {
+    console.error('Expenses daily error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get today's expenses total
 router.get('/today-total', authenticate, authorize('manager'), async (req, res) => {
   try {
@@ -59,6 +111,53 @@ router.get('/today-total', authenticate, authorize('manager'), async (req, res) 
       FROM expenses WHERE date::date = CURRENT_DATE
     `);
     res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get expenses summary (for profit calculation)
+router.get('/summary', authenticate, authorize('manager'), async (req, res) => {
+  try {
+    const { period } = req.query;
+    let dateFilter = '';
+    
+    if (period === 'today') {
+      dateFilter = "AND date::date = CURRENT_DATE";
+    } else if (period === 'week') {
+      dateFilter = "AND date >= date_trunc('week', CURRENT_DATE)";
+    } else if (period === 'month') {
+      dateFilter = "AND date >= date_trunc('month', CURRENT_DATE)";
+    } else if (period === 'year') {
+      dateFilter = "AND date >= date_trunc('year', CURRENT_DATE)";
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        COALESCE(SUM(amount), 0) as total,
+        COUNT(*) as count,
+        COALESCE(AVG(amount), 0) as average
+      FROM expenses WHERE 1=1 ${dateFilter}
+    `);
+
+    const byCategory = await pool.query(`
+      SELECT 
+        ec.name as category,
+        COALESCE(SUM(e.amount), 0) as total
+      FROM expenses e
+      LEFT JOIN expense_categories ec ON e.category_id = ec.id
+      WHERE 1=1 ${dateFilter}
+      GROUP BY ec.name
+      ORDER BY total DESC
+    `);
+
+    res.json({
+      total: result.rows[0].total,
+      count: parseInt(result.rows[0].count),
+      average: result.rows[0].average,
+      by_category: byCategory.rows,
+      period: period || 'all'
+    });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -76,7 +175,7 @@ router.post('/', authenticate, authorize('manager'), async (req, res) => {
       [expenseId, category_id, description, round2(amount), payment_method || 'cash', person_vendor, notes, req.user.id, date || new Date()]
     );
     
-    await logAudit(req.user.id, 'Expense recorded', `Expense: ${expenseId}, Amount: ${amount}`);
+    await logAudit(req.user.id, 'Expense recorded', `Expense: ${expenseId}, Amount: ${amount}, Description: ${description}`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Expense error:', err);

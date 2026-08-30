@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const { getWeekRange } = require('../utils/helpers');
+const { getWeekRange, getSettings, calculateAvailableFunds, round2 } = require('../utils/helpers');
 
 // Dashboard KPIs
 router.get('/kpis', authenticate, authorize('manager'), async (req, res) => {
@@ -44,6 +44,17 @@ router.get('/kpis', authenticate, authorize('manager'), async (req, res) => {
       WHERE current_stock = 0 AND status = 'active' AND deleted_at IS NULL
     `);
 
+    // Active kegs count
+    const activeKegs = await pool.query(`
+      SELECT COUNT(*) as count FROM kegs WHERE status = 'active'
+    `);
+
+    // Today's keg revenue
+    const todayKegRevenue = await pool.query(`
+      SELECT COALESCE(SUM(daily_total), 0) as total
+      FROM keg_transactions WHERE date::date = $1
+    `, [today]);
+
     const todayData = todaySales.rows[0];
     const expenses = parseFloat(todayExpenses.rows[0].total);
     const grossProfit = parseFloat(todayData.profit);
@@ -54,12 +65,14 @@ router.get('/kpis', authenticate, authorize('manager'), async (req, res) => {
       today_cost: todayData.cost,
       today_gross_profit: grossProfit,
       today_expenses: expenses,
-      today_net_profit: netProfit,
+      today_net_profit: round2(netProfit),
       today_transactions: todayData.transactions,
       today_avg_sale: todayData.avg_sale,
       stock_value: stockValue.rows[0].total_value,
       low_stock_count: lowStock.rows[0].count,
-      out_of_stock_count: outOfStock.rows[0].count
+      out_of_stock_count: outOfStock.rows[0].count,
+      active_kegs: activeKegs.rows[0].count,
+      today_keg_revenue: todayKegRevenue.rows[0].total
     });
   } catch (err) {
     console.error('Dashboard KPIs error:', err);
@@ -70,7 +83,7 @@ router.get('/kpis', authenticate, authorize('manager'), async (req, res) => {
 // Weekly KPIs
 router.get('/weekly', authenticate, authorize('manager'), async (req, res) => {
   try {
-    const { weekStart, weekEnd } = getWeekRange();
+    const { weekStart, weekEnd } = await getWeekRange();
     
     const sales = await pool.query(`
       SELECT 
@@ -86,6 +99,18 @@ router.get('/weekly', authenticate, authorize('manager'), async (req, res) => {
       FROM expenses WHERE date >= $1 AND date <= $2
     `, [weekStart, weekEnd]);
 
+    // Keg revenue this week
+    const kegRevenue = await pool.query(`
+      SELECT COALESCE(SUM(daily_total), 0) as total
+      FROM keg_transactions WHERE date >= $1 AND date <= $2
+    `, [weekStart, weekEnd]);
+
+    // Keg profit this week (from closed kegs)
+    const kegProfit = await pool.query(`
+      SELECT COALESCE(SUM(profit), 0) as total
+      FROM kegs WHERE close_date >= $1 AND close_date <= $2 AND status = 'closed'
+    `, [weekStart, weekEnd]);
+
     const salesByDay = await pool.query(`
       SELECT 
         date::date as day,
@@ -98,6 +123,14 @@ router.get('/weekly', authenticate, authorize('manager'), async (req, res) => {
       ORDER BY day
     `, [weekStart, weekEnd]);
 
+    const totalProfit = parseFloat(sales.rows[0].profit);
+    const totalExpenses = parseFloat(expenses.rows[0].total);
+    const totalKegRevenue = parseFloat(kegRevenue.rows[0].total);
+    const totalKegProfit = parseFloat(kegProfit.rows[0].total);
+    
+    // Net profit = Sales profit - Expenses + Keg profit
+    const netProfit = totalProfit - totalExpenses + totalKegProfit;
+
     res.json({
       week_start: weekStart,
       week_end: weekEnd,
@@ -105,11 +138,88 @@ router.get('/weekly', authenticate, authorize('manager'), async (req, res) => {
       cost: sales.rows[0].cost,
       profit: sales.rows[0].profit,
       expenses: expenses.rows[0].total,
-      net_profit: parseFloat(sales.rows[0].profit) - parseFloat(expenses.rows[0].total),
+      net_profit: round2(netProfit),
       transactions: sales.rows[0].transactions,
-      sales_by_day: salesByDay.rows
+      sales_by_day: salesByDay.rows,
+      keg_revenue: totalKegRevenue,
+      keg_profit: round2(totalKegProfit)
     });
   } catch (err) {
+    console.error('Weekly KPIs error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Weekly report (end of week summary)
+router.get('/weekly-report', authenticate, authorize('manager'), async (req, res) => {
+  try {
+    const { weekStart, weekEnd } = await getWeekRange();
+    const settings = await getSettings();
+    
+    // Get all sales for the week
+    const sales = await pool.query(`
+      SELECT 
+        COALESCE(SUM(total_revenue), 0) as revenue,
+        COALESCE(SUM(total_cost), 0) as cost,
+        COALESCE(SUM(total_profit), 0) as profit,
+        COUNT(*) as transactions
+      FROM sales WHERE date >= $1 AND date <= $2
+    `, [weekStart, weekEnd]);
+
+    // Get expenses for the week
+    const expenses = await pool.query(`
+      SELECT COALESCE(SUM(amount), 0) as total
+      FROM expenses WHERE date >= $1 AND date <= $2
+    `, [weekStart, weekEnd]);
+
+    // Get keg data for the week
+    const kegRevenue = await pool.query(`
+      SELECT COALESCE(SUM(daily_total), 0) as total
+      FROM keg_transactions WHERE date >= $1 AND date <= $2
+    `, [weekStart, weekEnd]);
+
+    const kegProfit = await pool.query(`
+      SELECT COALESCE(SUM(profit), 0) as total
+      FROM kegs WHERE close_date >= $1 AND close_date <= $2 AND status = 'closed'
+    `, [weekStart, weekEnd]);
+
+    // Get purchases for the week
+    const purchases = await pool.query(`
+      SELECT COALESCE(SUM(total_cost), 0) as total
+      FROM purchases WHERE date >= $1 AND date <= $2
+    `, [weekStart, weekEnd]);
+
+    // Calculate funds available for keg purchase
+    const totalProfit = parseFloat(sales.rows[0].profit);
+    const totalExpenses = parseFloat(expenses.rows[0].total);
+    const totalKegProfit = parseFloat(kegProfit.rows[0].total);
+    const totalPurchases = parseFloat(purchases.rows[0].total);
+    
+    const businessNetProfit = totalProfit - totalExpenses;
+    const moneyAvailableForKegPurchase = Math.max(0, businessNetProfit - totalPurchases);
+
+    res.json({
+      week_start: weekStart,
+      week_end: weekEnd,
+      settings: settings,
+      sales_summary: {
+        revenue: sales.rows[0].revenue,
+        cost: sales.rows[0].cost,
+        profit: sales.rows[0].profit,
+        transactions: sales.rows[0].transactions
+      },
+      expenses_total: expenses.rows[0].total,
+      keg_summary: {
+        revenue: kegRevenue.rows[0].total,
+        profit: round2(totalKegProfit)
+      },
+      purchases_total: purchases.rows[0].total,
+      business_net_profit: round2(businessNetProfit),
+      money_available_for_keg_purchase: round2(moneyAvailableForKegPurchase),
+      total_profit: round2(businessNetProfit + totalKegProfit)
+    });
+  } catch (err) {
+    console.error('Weekly report error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -148,7 +258,16 @@ router.get('/monthly', authenticate, authorize('manager'), async (req, res) => {
       FROM products WHERE status = 'active' AND deleted_at IS NULL
     `);
 
+    // Keg profit
+    const kegProfit = await pool.query(`
+      SELECT COALESCE(SUM(profit), 0) as total
+      FROM kegs WHERE close_date >= $1 AND close_date <= $2 AND status = 'closed'
+    `, [startDate, endDate]);
+
     const s = sales.rows[0];
+    const expensesTotal = parseFloat(expenses.rows[0].total);
+    const kegProfitTotal = parseFloat(kegProfit.rows[0].total);
+    
     res.json({
       month: m,
       year: y,
@@ -156,10 +275,11 @@ router.get('/monthly', authenticate, authorize('manager'), async (req, res) => {
       cost: s.cost,
       gross_profit: s.profit,
       expenses: expenses.rows[0].total,
-      net_profit: parseFloat(s.profit) - parseFloat(expenses.rows[0].total),
+      net_profit: round2(parseFloat(s.profit) - expensesTotal + kegProfitTotal),
       transactions: s.transactions,
       purchases_total: purchases.rows[0].total,
-      stock_value: stockValue.rows[0].total_value
+      stock_value: stockValue.rows[0].total_value,
+      keg_profit: round2(kegProfitTotal)
     });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -193,13 +313,15 @@ router.get('/yearly', authenticate, authorize('manager'), async (req, res) => {
     `, [startDate, endDate]);
 
     const s = sales.rows[0];
+    const expensesTotal = parseFloat(expenses.rows[0].total);
+    
     res.json({
       year: y,
       revenue: s.revenue,
       cost: s.cost,
       gross_profit: s.profit,
       expenses: expenses.rows[0].total,
-      net_profit: parseFloat(s.profit) - parseFloat(expenses.rows[0].total),
+      net_profit: round2(parseFloat(s.profit) - expensesTotal),
       transactions: s.transactions,
       purchases_total: purchases.rows[0].total
     });
@@ -238,43 +360,59 @@ router.get('/cash', authenticate, authorize('manager'), async (req, res) => {
   }
 });
 
-// Money available for purchases
+// Money available for purchases (weekly based)
 router.get('/funds', authenticate, authorize('manager'), async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const startDate = new Date().toISOString().split('T')[0].slice(0, 7) + '-01';
-
-    const revenue = await pool.query(`
-      SELECT COALESCE(SUM(total_revenue), 0) as total FROM sales WHERE date >= $1
-    `, [startDate]);
-
-    const productCosts = await pool.query(`
-      SELECT COALESCE(SUM(total_cost), 0) as total FROM sales WHERE date >= $1
-    `, [startDate]);
-
-    const purchases = await pool.query(`
-      SELECT COALESCE(SUM(total_cost), 0) as total FROM purchases WHERE date >= $1
-    `, [startDate]);
-
-    const expenses = await pool.query(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date >= $1
-    `, [startDate]);
-
-    const totalRevenue = parseFloat(revenue.rows[0].total);
-    const totalProductCosts = parseFloat(productCosts.rows[0].total);
-    const totalPurchases = parseFloat(purchases.rows[0].total);
-    const totalExpenses = parseFloat(expenses.rows[0].total);
-    const availableCash = totalRevenue - totalProductCosts - totalExpenses;
-    const purchaseFunds = totalRevenue - totalProductCosts - totalExpenses - totalPurchases;
+    const { weekStart, weekEnd } = await getWeekRange();
+    const funds = await calculateAvailableFunds(weekStart, weekEnd);
 
     res.json({
-      revenue: totalRevenue,
-      cost_of_goods: totalProductCosts,
-      purchases: totalPurchases,
-      expenses: totalExpenses,
-      available_cash: availableCash,
-      purchase_funds: Math.max(0, purchaseFunds),
-      period_start: startDate
+      ...funds,
+      week_start: weekStart,
+      week_end: weekEnd,
+      period_type: 'weekly'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Money available for keg purchase
+router.get('/keg-funds', authenticate, authorize('manager'), async (req, res) => {
+  try {
+    const { weekStart, weekEnd } = await getWeekRange();
+    
+    // Get weekly business profit (sales profit - expenses)
+    const sales = await pool.query(`
+      SELECT COALESCE(SUM(total_profit), 0) as profit
+      FROM sales WHERE date >= $1 AND date <= $2
+    `, [weekStart, weekEnd]);
+
+    const expenses = await pool.query(`
+      SELECT COALESCE(SUM(amount), 0) as total
+      FROM expenses WHERE date >= $1 AND date <= $2
+    `, [weekStart, weekEnd]);
+
+    const purchases = await pool.query(`
+      SELECT COALESCE(SUM(total_cost), 0) as total
+      FROM purchases WHERE date >= $1 AND date <= $2
+    `, [weekStart, weekEnd]);
+
+    const businessProfit = parseFloat(sales.rows[0].profit);
+    const totalExpenses = parseFloat(expenses.rows[0].total);
+    const totalPurchases = parseFloat(purchases.rows[0].total);
+    
+    const netProfit = businessProfit - totalExpenses;
+    const moneyAvailableForKeg = Math.max(0, netProfit - totalPurchases);
+
+    res.json({
+      business_profit: round2(businessProfit),
+      expenses: round2(totalExpenses),
+      net_profit: round2(netProfit),
+      purchases_made: round2(totalPurchases),
+      money_available_for_keg_purchase: round2(moneyAvailableForKeg),
+      week_start: weekStart,
+      week_end: weekEnd
     });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -336,6 +474,34 @@ router.get('/alerts', authenticate, authorize('manager'), async (req, res) => {
     `);
     largeExpenses.rows.forEach(e => {
       alerts.push({ type: 'warning', message: `Large expense: ${e.description} - KSh ${e.amount}`, category: 'large_expense' });
+    });
+
+    // Active kegs nearing profit limit
+    const settings = await getSettings();
+    const kegProfitLimit = settings.keg_profit_limit || 5000;
+    
+    const activeKegs = await pool.query(`
+      SELECT keg_id, product_name, total_revenue, buying_price,
+             (total_revenue - buying_price) as current_profit
+      FROM kegs WHERE status = 'active'
+    `);
+    
+    activeKegs.rows.forEach(k => {
+      const profit = parseFloat(k.current_profit);
+      if (profit >= kegProfitLimit) {
+        alerts.push({ 
+          type: 'success', 
+          message: `Keg ${k.keg_id} reached profit limit! Current profit: KSh ${profit.toFixed(2)}`, 
+          category: 'keg_limit_reached' 
+        });
+      } else {
+        const percentage = (profit / kegProfitLimit * 100).toFixed(0);
+        alerts.push({ 
+          type: 'info', 
+          message: `Keg ${k.keg_id} (${k.product_name}): KSh ${profit.toFixed(0)} / ${kegProfitLimit} (${percentage}%)`, 
+          category: 'keg_progress' 
+        });
+      }
     });
 
     res.json(alerts);

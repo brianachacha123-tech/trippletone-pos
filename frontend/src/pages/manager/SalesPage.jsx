@@ -3,8 +3,9 @@ import api from '../../utils/api';
 
 export default function SalesPage() {
   const [sales, setSales] = useState([]);
+  const [dailySales, setDailySales] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
-  const [filters, setFilters] = useState({ date_from: '', date_to: '', payment_method: '' });
+  const [filters, setFilters] = useState({ date_from: '', date_to: '', payment_method: '', view: 'daily' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadSales(); }, [filters]);
@@ -12,12 +13,20 @@ export default function SalesPage() {
   const loadSales = async () => {
     setLoading(true);
     try {
-      const params = {};
-      if (filters.date_from) params.date_from = filters.date_from;
-      if (filters.date_to) params.date_to = filters.date_to;
-      if (filters.payment_method) params.payment_method = filters.payment_method;
-      const res = await api.get('/sales', { params });
-      setSales(res.data);
+      if (filters.view === 'daily') {
+        const params = {};
+        if (filters.date_from) params.date_from = filters.date_from;
+        if (filters.date_to) params.date_to = filters.date_to;
+        const res = await api.get('/sales/by-day', { params });
+        setDailySales(res.data);
+      } else {
+        const params = {};
+        if (filters.date_from) params.date_from = filters.date_from;
+        if (filters.date_to) params.date_to = filters.date_to;
+        if (filters.payment_method) params.payment_method = filters.payment_method;
+        const res = await api.get('/sales', { params });
+        setSales(res.data);
+      }
     } catch (err) { console.error(err); }
     setLoading(false);
   };
@@ -31,62 +40,147 @@ export default function SalesPage() {
 
   const fmt = (n) => `KSh ${parseFloat(n || 0).toLocaleString()}`;
 
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+    });
+  };
+
   return (
     <div>
       <div className="page-header">
         <h1>💰 Sales</h1>
-        <p>View and manage all sales transactions</p>
+        <p>View and manage all sales transactions - grouped by day for easy verification</p>
       </div>
 
       <div className="filters-bar">
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <label style={{ fontSize: '13px', fontWeight: '500' }}>View:</label>
+          <select 
+            value={filters.view} 
+            onChange={e => setFilters({...filters, view: e.target.value})}
+            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ddd' }}
+          >
+            <option value="daily">By Day (Recommended)</option>
+            <option value="all">All Sales</option>
+          </select>
+        </div>
         <input type="date" value={filters.date_from} onChange={e => setFilters({...filters, date_from: e.target.value})} placeholder="From" style={{ flex: '1 1 140px' }} />
         <input type="date" value={filters.date_to} onChange={e => setFilters({...filters, date_to: e.target.value})} placeholder="To" style={{ flex: '1 1 140px' }} />
-        <select value={filters.payment_method} onChange={e => setFilters({...filters, payment_method: e.target.value})} style={{ flex: '1 1 130px' }}>
-          <option value="">All Methods</option>
-          <option value="cash">Cash</option>
-          <option value="mpesa">M-Pesa</option>
-          <option value="card">Card</option>
-          <option value="other">Other</option>
-        </select>
-        <button className="btn btn-outline" onClick={() => setFilters({ date_from: '', date_to: '', payment_method: '' })}>Clear</button>
+        {filters.view === 'all' && (
+          <select value={filters.payment_method} onChange={e => setFilters({...filters, payment_method: e.target.value})} style={{ flex: '1 1 130px' }}>
+            <option value="">All Methods</option>
+            <option value="cash">Cash</option>
+            <option value="mpesa">M-Pesa</option>
+            <option value="card">Card</option>
+            <option value="other">Other</option>
+          </select>
+        )}
+        <button className="btn btn-outline" onClick={() => setFilters({ date_from: '', date_to: '', payment_method: '', view: 'daily' })}>Clear</button>
       </div>
 
-      <div className="table-container">
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          <table style={{ minWidth: '900px' }}>
-            <thead>
-              <tr>
-                <th>Sale ID</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Cashier</th>
-                <th>Payment</th>
-                <th>Revenue</th>
-                <th>Cost</th>
-                <th>Profit</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sales.map(sale => (
-                <tr key={sale.id}>
-                  <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{sale.sale_id}</td>
-                  <td>{new Date(sale.date).toLocaleDateString()}</td>
-                  <td>{new Date(sale.date).toLocaleTimeString()}</td>
-                  <td>{sale.cashier_name}</td>
-                  <td><span className={`badge badge-${sale.payment_method === 'cash' ? 'success' : sale.payment_method === 'mpesa' ? 'info' : 'warning'}`}>{sale.payment_method}</span></td>
-                  <td style={{ fontWeight: 600 }}>{fmt(sale.total_revenue)}</td>
-                  <td>{fmt(sale.total_cost)}</td>
-                  <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(sale.total_profit)}</td>
-                  <td><button className="btn btn-sm btn-outline" onClick={() => viewSale(sale.id)}>View</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {loading ? (
+        <div style={{ padding: '40px', textAlign: 'center' }}>Loading sales...</div>
+      ) : filters.view === 'daily' ? (
+        <div className="daily-sales-container">
+          {dailySales.length === 0 ? (
+            <div className="card" style={{ padding: '40px', textAlign: 'center' }}>
+              <p style={{ color: '#666', margin: 0 }}>No sales found for the selected period</p>
+            </div>
+          ) : (
+            dailySales.map((dayData, idx) => (
+              <div key={idx} className="card" style={{ marginBottom: '16px' }}>
+                <div style={{ 
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '16px', borderBottom: '2px solid #f0f0f0'
+                }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
+                      📅 {formatDate(dayData.day)}
+                    </h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+                      {dayData.transaction_count} transaction{dayData.transaction_count !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '20px', fontWeight: '700', color: '#0f3460' }}>
+                      {fmt(dayData.revenue)}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#27ae60' }}>
+                      Net Profit: {fmt(dayData.net_profit)}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ padding: '16px', backgroundColor: '#f8f9fa', borderTop: '1px solid #eee' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Transactions</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600' }}>{dayData.transaction_count}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Revenue</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600', color: '#0f3460' }}>{fmt(dayData.revenue)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Cost</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600' }}>{fmt(dayData.cost)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Profit</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600', color: '#27ae60' }}>{fmt(dayData.profit)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Expenses</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600', color: '#e74c3c' }}>{fmt(dayData.expenses)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>Net Profit</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600', color: '#27ae60' }}>{fmt(dayData.net_profit)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="table-container">
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ minWidth: '900px' }}>
+              <thead>
+                <tr>
+                  <th>Sale ID</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Cashier</th>
+                  <th>Payment</th>
+                  <th>Revenue</th>
+                  <th>Cost</th>
+                  <th>Profit</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sales.map(sale => (
+                  <tr key={sale.id}>
+                    <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>{sale.sale_id}</td>
+                    <td>{new Date(sale.date).toLocaleDateString()}</td>
+                    <td>{new Date(sale.date).toLocaleTimeString()}</td>
+                    <td>{sale.cashier_name}</td>
+                    <td><span className={`badge badge-${sale.payment_method === 'cash' ? 'success' : sale.payment_method === 'mpesa' ? 'info' : 'warning'}`}>{sale.payment_method}</span></td>
+                    <td style={{ fontWeight: 600 }}>{fmt(sale.total_revenue)}</td>
+                    <td>{fmt(sale.total_cost)}</td>
+                    <td style={{ color: '#27ae60', fontWeight: 600 }}>{fmt(sale.total_profit)}</td>
+                    <td><button className="btn btn-sm btn-outline" onClick={() => viewSale(sale.id)}>View</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-      {/* Sale Detail Modal */}
       {selectedSale && (
         <div className="modal-overlay" onClick={() => setSelectedSale(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>

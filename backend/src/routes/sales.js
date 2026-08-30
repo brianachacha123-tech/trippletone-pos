@@ -37,6 +37,7 @@ router.post('/', authenticate, authorize('cashier', 'manager'), async (req, res)
     const prepared = [];
     let totalRevenue = 0;
     let totalCost = 0;
+    let clbItems = []; // Track CLB items
 
     for (const raw of items) {
       const qty = parseFloat(raw.quantity);
@@ -46,7 +47,7 @@ router.post('/', authenticate, authorize('cashier', 'manager'), async (req, res)
       }
 
       const productResult = await client.query(
-        'SELECT id, name, selling_price, buying_price, current_stock FROM products WHERE id = $1 AND status = $2 AND deleted_at IS NULL',
+        'SELECT id, name, selling_price, buying_price, current_stock, is_clb FROM products WHERE id = $1 AND status = $2 AND deleted_at IS NULL',
         [productId, 'active']
       );
       if (productResult.rows.length === 0) {
@@ -64,6 +65,17 @@ router.post('/', authenticate, authorize('cashier', 'manager'), async (req, res)
       const itemCost = round2(qty * unitCost);
       totalRevenue = round2(totalRevenue + itemTotal);
       totalCost = round2(totalCost + itemCost);
+
+      // Track CLB items
+      if (product.is_clb) {
+        clbItems.push({
+          product_id: product.id,
+          name: product.name,
+          quantity: qty,
+          unit_price: unitPrice,
+          total_price: itemTotal
+        });
+      }
 
       prepared.push({ product, qty, unitPrice, unitCost, itemTotal, itemCost });
     }
@@ -106,7 +118,8 @@ router.post('/', authenticate, authorize('cashier', 'manager'), async (req, res)
         name: p.product.name,
         quantity: p.qty,
         unit_price: p.unitPrice,
-        total_price: p.itemTotal
+        total_price: p.itemTotal,
+        is_clb: p.product.is_clb
       });
     }
 
@@ -115,6 +128,15 @@ router.post('/', authenticate, authorize('cashier', 'manager'), async (req, res)
       'INSERT INTO payments (sale_id, method, amount) VALUES ($1, $2, $3)',
       [sale.id, payment_method || 'cash', totalRevenue]
     );
+
+    // Create CLB transaction if there are CLB items
+    if (clbItems.length > 0) {
+      const clbDescription = clbItems.map(item => `${item.name} x${item.quantity}`).join(', ');
+      await client.query(
+        'INSERT INTO clb_transactions (type, description, amount, sale_id, created_by, date) VALUES ($1, $2, $3, $4, $5, NOW())',
+        ['sale', clbDescription, totalRevenue, sale.id, req.user.id]
+      );
+    }
 
     await client.query('COMMIT');
 
@@ -167,6 +189,62 @@ router.get('/', authenticate, authorize('manager'), async (req, res) => {
 
     query += ' ORDER BY s.date DESC';
     const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get sales grouped by day (for easy daily verification)
+router.get('/by-day', authenticate, authorize('manager'), async (req, res) => {
+  try {
+    const { date_from, date_to } = req.query;
+    let query = `
+      SELECT 
+        date::date as day,
+        COUNT(*) as transaction_count,
+        COALESCE(SUM(total_revenue), 0) as revenue,
+        COALESCE(SUM(total_cost), 0) as cost,
+        COALESCE(SUM(total_profit), 0) as profit,
+        COALESCE(SUM(total_expenses), 0) as expenses,
+        COALESCE(SUM(total_revenue) - SUM(total_cost) - COALESCE(SUM(total_expenses), 0), 0) as net_profit
+      FROM sales
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (date_from) {
+      query += ` AND date >= $${paramIndex}`;
+      params.push(date_from);
+      paramIndex++;
+    }
+    if (date_to) {
+      query += ` AND date <= $${paramIndex}::date + INTERVAL '1 day'`;
+      params.push(date_to);
+      paramIndex++;
+    }
+
+    query += ' GROUP BY date::date ORDER BY day DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get sales details for a specific day
+router.get('/day/:date', authenticate, authorize('manager'), async (req, res) => {
+  try {
+    const { date } = req.params;
+    const result = await pool.query(`
+      SELECT s.*, u.full_name as cashier_name,
+        (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as item_count
+      FROM sales s
+      LEFT JOIN users u ON s.user_id = u.id
+      WHERE date::date = $1
+      ORDER BY s.date DESC
+    `, [date]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -226,6 +304,7 @@ router.get('/summary/today', authenticate, async (req, res) => {
         COALESCE(SUM(total_revenue), 0) as total_revenue,
         COALESCE(SUM(total_cost), 0) as total_cost,
         COALESCE(SUM(total_profit), 0) as total_profit,
+        COALESCE(SUM(total_expenses), 0) as total_expenses,
         COALESCE(AVG(total_revenue), 0) as avg_sale,
         COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN total_revenue ELSE 0 END), 0) as cash_sales,
         COALESCE(SUM(CASE WHEN payment_method = 'mpesa' THEN total_revenue ELSE 0 END), 0) as mpesa_sales,

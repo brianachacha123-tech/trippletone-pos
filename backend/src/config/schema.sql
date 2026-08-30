@@ -33,9 +33,15 @@ CREATE TABLE IF NOT EXISTS settings (
   business_location TEXT,
   currency VARCHAR(10) DEFAULT 'KSh',
   tax_rate DECIMAL(5,2) DEFAULT 0,
+  week_start_day INTEGER DEFAULT 1, -- 0=Sunday, 1=Monday, 2=Tuesday, etc.
+  keg_profit_limit DECIMAL(12,2) DEFAULT 5000, -- Target profit per keg
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add new columns to settings if they don't exist
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS week_start_day INTEGER DEFAULT 1;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS keg_profit_limit DECIMAL(12,2) DEFAULT 5000;
 
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,
@@ -66,6 +72,7 @@ CREATE TABLE IF NOT EXISTS products (
   unit VARCHAR(50) DEFAULT 'piece',
   supplier_id INTEGER,
   status VARCHAR(20) DEFAULT 'active',
+  is_clb BOOLEAN DEFAULT false, -- CLB product flag
   date_added TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   deleted_at TIMESTAMP
@@ -92,6 +99,7 @@ $$;
 -- hidden by setting deleted_at. Applied after the table definition so it works
 -- for both fresh and existing databases.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_clb BOOLEAN DEFAULT false;
 CREATE INDEX IF NOT EXISTS idx_products_active ON products(deleted_at) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS supplier_products (
@@ -109,6 +117,7 @@ CREATE TABLE IF NOT EXISTS sales (
   total_revenue DECIMAL(12,2) DEFAULT 0,
   total_cost DECIMAL(12,2) DEFAULT 0,
   total_profit DECIMAL(12,2) DEFAULT 0,
+  total_expenses DECIMAL(12,2) DEFAULT 0, -- Expenses for this sale
   payment_method VARCHAR(20) DEFAULT 'cash',
   status VARCHAR(20) DEFAULT 'completed',
   created_at TIMESTAMP DEFAULT NOW()
@@ -116,6 +125,7 @@ CREATE TABLE IF NOT EXISTS sales (
 
 -- Upgrade path for existing databases + idempotency index for offline sync
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS client_ref VARCHAR(100);
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS total_expenses DECIMAL(12,2) DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_client_ref ON sales(client_ref) WHERE client_ref IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS sale_items (
@@ -160,10 +170,14 @@ CREATE TABLE IF NOT EXISTS expenses (
   payment_method VARCHAR(20) DEFAULT 'cash',
   person_vendor VARCHAR(200),
   notes TEXT,
+  is_recurring BOOLEAN DEFAULT false, -- Weekly recurring expense
   date TIMESTAMP DEFAULT NOW(),
   created_by INTEGER REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add is_recurring column to expenses if it doesn't exist
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS inventory_transactions (
   id SERIAL PRIMARY KEY,
@@ -182,6 +196,7 @@ CREATE TABLE IF NOT EXISTS kegs (
   keg_id VARCHAR(50) UNIQUE NOT NULL,
   product_name VARCHAR(200),
   buying_price DECIMAL(12,2) DEFAULT 0,
+  target_price DECIMAL(12,2) DEFAULT 0, -- Target price to reach
   status VARCHAR(20) DEFAULT 'open',
   open_date TIMESTAMP DEFAULT NOW(),
   close_date TIMESTAMP,
@@ -189,6 +204,9 @@ CREATE TABLE IF NOT EXISTS kegs (
   profit DECIMAL(12,2) DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add target_price column to kegs if it doesn't exist
+ALTER TABLE kegs ADD COLUMN IF NOT EXISTS target_price DECIMAL(12,2) DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS keg_transactions (
   id SERIAL PRIMARY KEY,
@@ -206,10 +224,14 @@ CREATE TABLE IF NOT EXISTS clb_transactions (
   type VARCHAR(20) NOT NULL,
   description TEXT,
   amount DECIMAL(12,2) NOT NULL,
+  sale_id INTEGER REFERENCES sales(id), -- Link to POS sale
   date TIMESTAMP DEFAULT NOW(),
   created_by INTEGER REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add sale_id column to clb_transactions if it doesn't exist
+ALTER TABLE clb_transactions ADD COLUMN IF NOT EXISTS sale_id INTEGER REFERENCES sales(id);
 
 CREATE TABLE IF NOT EXISTS weekly_summaries (
   id SERIAL PRIMARY KEY,
@@ -222,8 +244,16 @@ CREATE TABLE IF NOT EXISTS weekly_summaries (
   total_expenses DECIMAL(12,2) DEFAULT 0,
   net_profit DECIMAL(12,2) DEFAULT 0,
   total_transactions INTEGER DEFAULT 0,
+  keg_profit DECIMAL(12,2) DEFAULT 0,
+  clb_profit DECIMAL(12,2) DEFAULT 0,
+  available_for_purchase DECIMAL(12,2) DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add new columns to weekly_summaries if they don't exist
+ALTER TABLE weekly_summaries ADD COLUMN IF NOT EXISTS keg_profit DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE weekly_summaries ADD COLUMN IF NOT EXISTS clb_profit DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE weekly_summaries ADD COLUMN IF NOT EXISTS available_for_purchase DECIMAL(12,2) DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS monthly_summaries (
   id SERIAL PRIMARY KEY,
@@ -291,9 +321,10 @@ VALUES
   ('Energy Drinks'),
   ('Cigarettes'),
   ('Food'),
+  ('CLB'),
   ('Other')
 ON CONFLICT (name) DO NOTHING;
 
-INSERT INTO settings (business_name, currency)
-VALUES ('Trippletone Bar', 'KSh')
+INSERT INTO settings (business_name, currency, week_start_day, keg_profit_limit)
+VALUES ('Trippletone Bar', 'KSh', 1, 5000)
 ON CONFLICT DO NOTHING;
