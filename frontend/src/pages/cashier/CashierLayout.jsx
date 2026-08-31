@@ -350,22 +350,24 @@ export default function CashierLayout() {
                 />
               </div>
 
-              {/* Product Grid - Loyverse Style */}
-              <div className="loyverse-product-grid">
+              {/* Product List - List View */}
+              <div className="loyverse-product-list">
                 {filteredProducts.map(product => (
                   <div
                     key={product.id}
                     onClick={() => addToCart(product)}
-                    className="loyverse-product-card"
+                    className="loyverse-product-list-item"
                     onTouchStart={(e) => { e.currentTarget.classList.add('pressed'); }}
                     onTouchEnd={(e) => { e.currentTarget.classList.remove('pressed'); }}
                     onMouseOver={(e) => { e.currentTarget.classList.add('hovered'); }}
                     onMouseOut={(e) => { e.currentTarget.classList.remove('hovered'); }}
                   >
-                    <div className="loyverse-product-emoji">📦</div>
-                    <div className="loyverse-product-name">{product.name}</div>
-                    <div className="loyverse-product-price">KSh {parseFloat(product.selling_price).toLocaleString()}</div>
-                    <div className="loyverse-product-stock">Stock: {parseFloat(product.current_stock).toLocaleString()}</div>
+                    <div className="loyverse-list-item-emoji">📦</div>
+                    <div className="loyverse-list-item-info">
+                      <div className="loyverse-list-item-name">{product.name}</div>
+                      <div className="loyverse-list-item-stock">Stock: {parseFloat(product.current_stock).toLocaleString()} {product.unit}</div>
+                    </div>
+                    <div className="loyverse-list-item-price">KSh {parseFloat(product.selling_price).toLocaleString()}</div>
                   </div>
                 ))}
                 {filteredProducts.length === 0 && (
@@ -786,77 +788,81 @@ export default function CashierLayout() {
           color: #999;
         }
 
-        /* Product Grid - Loyverse Style */
-        .loyverse-product-grid {
+        /* Product List - List View */
+        .loyverse-product-list {
           flex: 1;
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-          gap: 12px;
-          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+          padding: 0 16px;
           overflow-y: auto;
-          align-content: start;
           -webkit-overflow-scrolling: touch;
         }
 
-        .loyverse-product-card {
+        .loyverse-product-list-item {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 14px 16px;
           background: #fff;
-          border: 2px solid #e8e8e8;
-          border-radius: 16px;
-          padding: 16px 12px;
+          border: none;
+          border-bottom: 1px solid #f0f0f0;
           cursor: pointer;
-          text-align: center;
           transition: all 0.15s ease;
           user-select: none;
           -webkit-tap-highlight-color: transparent;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
         }
 
-        .loyverse-product-card.pressed,
-        .loyverse-product-card:active {
-          transform: scale(0.96);
-          border-color: #1e2a3a;
-          box-shadow: 0 4px 12px rgba(30, 42, 58, 0.2);
+        .loyverse-product-list-item:last-child {
+          border-bottom: none;
         }
 
-        .loyverse-product-card.hovered {
-          border-color: #1e2a3a;
-          box-shadow: 0 4px 12px rgba(30, 42, 58, 0.15);
+        .loyverse-product-list-item.pressed,
+        .loyverse-product-list-item:active {
+          background: #f0f2f5;
+          border-color: transparent;
         }
 
-        .loyverse-product-emoji {
-          font-size: 36px;
-          margin-bottom: 4px;
+        .loyverse-product-list-item.hovered {
+          background: #f8f9fa;
         }
 
-        .loyverse-product-name {
-          font-size: 13px;
+        .loyverse-list-item-emoji {
+          font-size: 28px;
+          flex-shrink: 0;
+          width: 40px;
+          text-align: center;
+        }
+
+        .loyverse-list-item-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .loyverse-list-item-name {
+          font-size: 14px;
           font-weight: 600;
           color: #333;
-          line-height: 1.3;
-          max-height: 34px;
+          white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
         }
 
-        .loyverse-product-price {
+        .loyverse-list-item-stock {
+          font-size: 12px;
+          color: #999;
+          margin-top: 2px;
+        }
+
+        .loyverse-list-item-price {
           font-size: 16px;
           font-weight: 700;
           color: #1e2a3a;
-        }
-
-        .loyverse-product-stock {
-          font-size: 11px;
-          color: #999;
+          white-space: nowrap;
+          flex-shrink: 0;
         }
 
         .loyverse-empty-products {
-          grid-column: 1 / -1;
           text-align: center;
           padding: 60px 20px;
           color: #999;
@@ -1212,25 +1218,25 @@ export default function CashierLayout() {
             padding: 10px 12px;
           }
 
-          .loyverse-product-grid {
-            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+          .loyverse-product-list {
+            padding: 0 12px;
+          }
+
+          .loyverse-product-list-item {
+            padding: 12px 10px;
             gap: 10px;
-            padding: 12px;
           }
 
-          .loyverse-product-card {
-            padding: 12px 8px;
+          .loyverse-list-item-emoji {
+            font-size: 22px;
+            width: 32px;
           }
 
-          .loyverse-product-emoji {
-            font-size: 28px;
+          .loyverse-list-item-name {
+            font-size: 13px;
           }
 
-          .loyverse-product-name {
-            font-size: 12px;
-          }
-
-          .loyverse-product-price {
+          .loyverse-list-item-price {
             font-size: 14px;
           }
 
@@ -1278,25 +1284,25 @@ export default function CashierLayout() {
             font-size: 15px;
           }
 
-          .loyverse-product-grid {
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+          .loyverse-product-list {
+            padding: 0 10px;
+          }
+
+          .loyverse-product-list-item {
+            padding: 10px 8px;
             gap: 8px;
-            padding: 10px;
           }
 
-          .loyverse-product-card {
-            padding: 10px 6px;
+          .loyverse-list-item-emoji {
+            font-size: 20px;
+            width: 28px;
           }
 
-          .loyverse-product-emoji {
-            font-size: 24px;
+          .loyverse-list-item-name {
+            font-size: 12px;
           }
 
-          .loyverse-product-name {
-            font-size: 11px;
-          }
-
-          .loyverse-product-price {
+          .loyverse-list-item-price {
             font-size: 13px;
           }
 

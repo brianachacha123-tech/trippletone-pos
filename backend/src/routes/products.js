@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const { logAudit } = require('../utils/helpers');
+const { logAudit, round2 } = require('../utils/helpers');
 
 // Get all products with category and supplier info
 router.get('/', authenticate, async (req, res) => {
@@ -228,6 +228,134 @@ router.get('/meta/stock-value', authenticate, async (req, res) => {
       by_category: result.rows
     });
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Inventory report: Opening stock, purchases, units sold, closing stock for a date range
+router.get('/inventory-report', authenticate, authorize('manager'), async (req, res) => {
+  try {
+    const { date_from, date_to, product_id } = req.query;
+    const startDate = date_from || new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0];
+    const endDate = date_to || new Date().toISOString().split('T')[0];
+
+    // Get all active products (or a specific one)
+    let productQuery = `SELECT id, name, unit, buying_price, selling_price, current_stock FROM products WHERE status = 'active' AND deleted_at IS NULL`;
+    const productParams = [];
+    if (product_id) {
+      productQuery += ' AND id = $1';
+      productParams.push(product_id);
+    }
+    productQuery += ' ORDER BY name ASC';
+    const products = await pool.query(productQuery, productParams);
+
+    const report = [];
+
+    for (const product of products.rows) {
+      // Opening stock: current stock + sold during period - purchased during period
+      const soldDuringPeriod = await pool.query(
+        `SELECT COALESCE(SUM(quantity), 0) as total_sold
+         FROM inventory_transactions
+         WHERE product_id = $1 AND type = 'sale' AND date >= $2 AND date <= ($3::date + INTERVAL '1 day')`,
+        [product.id, startDate, endDate]
+      );
+
+      const purchasedDuringPeriod = await pool.query(
+        `SELECT COALESCE(SUM(quantity), 0) as total_purchased
+         FROM inventory_transactions
+         WHERE product_id = $1 AND type = 'purchase' AND date >= $2 AND date <= ($3::date + INTERVAL '1 day')`,
+        [product.id, startDate, endDate]
+      );
+
+      const adjustmentsDuringPeriod = await pool.query(
+        `SELECT COALESCE(SUM(quantity), 0) as total_adjusted
+         FROM inventory_transactions
+         WHERE product_id = $1 AND type = 'adjustment' AND date >= $2 AND date <= ($3::date + INTERVAL '1 day')`,
+        [product.id, startDate, endDate]
+      );
+
+      const unitsSold = parseFloat(soldDuringPeriod.rows[0].total_sold) || 0;
+      const unitsPurchased = parseFloat(purchasedDuringPeriod.rows[0].total_purchased) || 0;
+      const adjustments = parseFloat(adjustmentsDuringPeriod.rows[0].total_adjusted) || 0;
+      const closingStock = parseFloat(product.current_stock);
+
+      // opening = closing + sold - purchased - adjustments
+      const openingStock = round2(closingStock + unitsSold - unitsPurchased - adjustments);
+
+      report.push({
+        product_id: product.id,
+        product_name: product.name,
+        unit: product.unit,
+        buying_price: product.buying_price,
+        opening_stock: openingStock,
+        purchases: unitsPurchased,
+        unit_sold: unitsSold,
+        adjustments: adjustments,
+        closing_stock: closingStock,
+      });
+    }
+
+    res.json({
+      date_from: startDate,
+      date_to: endDate,
+      items: report,
+    });
+  } catch (err) {
+    console.error('Inventory report error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Inventory report CSV download
+router.get('/inventory-report/download', authenticate, authorize('manager'), async (req, res) => {
+  try {
+    const { date_from, date_to, format } = req.query;
+    const startDate = date_from || new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0];
+    const endDate = date_to || new Date().toISOString().split('T')[0];
+
+    // Reuse the same logic as the inventory report
+    const products = await pool.query(
+      `SELECT id, name, unit, buying_price, current_stock FROM products WHERE status = 'active' AND deleted_at IS NULL ORDER BY name`
+    );
+
+    let csvContent = 'Product,Unit,Buying Price,Opening Stock,Purchases,Units Sold,Adjustments,Closing Stock\n';
+
+    for (const product of products.rows) {
+      const sold = await pool.query(
+        `SELECT COALESCE(SUM(quantity), 0) as total FROM inventory_transactions
+         WHERE product_id = $1 AND type = 'sale' AND date >= $2 AND date <= ($3::date + INTERVAL '1 day')`,
+        [product.id, startDate, endDate]
+      );
+      const purchased = await pool.query(
+        `SELECT COALESCE(SUM(quantity), 0) as total FROM inventory_transactions
+         WHERE product_id = $1 AND type = 'purchase' AND date >= $2 AND date <= ($3::date + INTERVAL '1 day')`,
+        [product.id, startDate, endDate]
+      );
+      const adjusted = await pool.query(
+        `SELECT COALESCE(SUM(quantity), 0) as total FROM inventory_transactions
+         WHERE product_id = $1 AND type = 'adjustment' AND date >= $2 AND date <= ($3::date + INTERVAL '1 day')`,
+        [product.id, startDate, endDate]
+      );
+
+      const unitsSold = parseFloat(sold.rows[0].total) || 0;
+      const unitsPurchased = parseFloat(purchased.rows[0].total) || 0;
+      const adjustments = parseFloat(adjusted.rows[0].total) || 0;
+      const closingStock = parseFloat(product.current_stock);
+      const openingStock = round2(closingStock + unitsSold - unitsPurchased - adjustments);
+
+      csvContent += `"${product.name}","${product.unit}",${product.buying_price},${openingStock},${unitsPurchased},${unitsSold},${adjustments},${closingStock}\n`;
+    }
+
+    if (format === 'csv' || !format) {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=inventory-report-${startDate}-to-${endDate}.csv`);
+      res.send(csvContent);
+    } else {
+      // Return as JSON for the frontend to handle
+      res.json({ csv: csvContent });
+    }
+  } catch (err) {
+    console.error('Inventory report download error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

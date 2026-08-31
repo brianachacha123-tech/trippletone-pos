@@ -196,8 +196,11 @@ CREATE TABLE IF NOT EXISTS kegs (
   keg_id VARCHAR(50) UNIQUE NOT NULL,
   product_name VARCHAR(200),
   buying_price DECIMAL(12,2) DEFAULT 0,
+  selling_price DECIMAL(12,2) DEFAULT 0, -- Target selling price (buying + profit target)
   target_price DECIMAL(12,2) DEFAULT 0, -- Target price to reach
   status VARCHAR(20) DEFAULT 'open',
+  profit_released DECIMAL(12,2) DEFAULT 0, -- Profit already released/removed
+  available_funds DECIMAL(12,2) DEFAULT 0, -- Funds available for new keg purchase
   open_date TIMESTAMP DEFAULT NOW(),
   close_date TIMESTAMP,
   total_revenue DECIMAL(12,2) DEFAULT 0,
@@ -207,6 +210,9 @@ CREATE TABLE IF NOT EXISTS kegs (
 
 -- Add target_price column to kegs if it doesn't exist
 ALTER TABLE kegs ADD COLUMN IF NOT EXISTS target_price DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE kegs ADD COLUMN IF NOT EXISTS selling_price DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE kegs ADD COLUMN IF NOT EXISTS profit_released DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE kegs ADD COLUMN IF NOT EXISTS available_funds DECIMAL(12,2) DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS keg_transactions (
   id SERIAL PRIMARY KEY,
